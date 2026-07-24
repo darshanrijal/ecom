@@ -7,5 +7,12 @@
   ],
   "assist": {
     "enabled": false
+  },
+  "linter": {
+    "rules": {
+      "performance": {
+        "noJsxPropsBind": "off"
+      }
+    }
   }
 }
