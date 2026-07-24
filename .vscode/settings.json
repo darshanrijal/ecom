@@ -56,5 +56,6 @@
   "files.associations": {
     "*.css": "tailwindcss"
   },
-  "js/ts.preferences.autoImportFileExcludePatterns": ["@base-ui/react"]
+  "js/ts.preferences.autoImportFileExcludePatterns": ["@base-ui/react"],
+  "tailwindCSS.classFunctions": ["cva"]
 }
