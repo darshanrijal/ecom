@@ -55,5 +55,8 @@
     "*.css": "tailwindcss"
   },
   "js/ts.preferences.autoImportFileExcludePatterns": ["@base-ui/react"],
-  "tailwindCSS.classFunctions": ["cva"]
+  "tailwindCSS.classFunctions": ["cva"],
+  "[prisma]": {
+    "editor.defaultFormatter": "Prisma.prisma"
+  }
 }
