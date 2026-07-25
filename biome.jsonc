@@ -12,6 +12,9 @@
     "rules": {
       "performance": {
         "noJsxPropsBind": "off"
+      },
+      "style": {
+        "useConsistentArrowReturn": "off"
       }
     }
   }
