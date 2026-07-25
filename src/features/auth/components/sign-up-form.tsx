@@ -49,7 +49,7 @@ export const SignUpForm = () => {
         callbackURL: "/",
         fetchOptions: {
           onSuccess: () => {
-            router.push("/");
+            router.push("/verify-email");
           },
           onError: ({ error }) => {
             setAuthError(error.message);

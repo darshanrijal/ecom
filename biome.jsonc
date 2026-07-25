@@ -15,6 +15,9 @@
       },
       "style": {
         "useConsistentArrowReturn": "off"
+      },
+      "complexity": {
+        "useSimplifiedLogicExpression": "off"
       }
     }
   }

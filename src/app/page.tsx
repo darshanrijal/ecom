@@ -1,8 +1,8 @@
 import { LogoutButton } from "@/components/logout-button";
-import { getCurrentSession } from "@/lib/auth";
+import { preventUnauthorized } from "@/lib/auth";
 
 export default async function Home() {
-  const { session, user } = await getCurrentSession();
+  const { session, user } = await preventUnauthorized();
   if (session) {
     return (
       <main>

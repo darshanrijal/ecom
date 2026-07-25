@@ -14,8 +14,9 @@ import { getCurrentSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 
 export default async function SignInPage() {
-  const { session } = await getCurrentSession();
-  if (session) {
+  const { user } = await getCurrentSession();
+
+  if (user) {
     redirect("/");
   }
 

@@ -5,6 +5,7 @@ import { resend } from "./resend";
 import { env } from "@/config/env";
 import { cache } from "react";
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 
 export const auth = betterAuth({
   database: prismaAdapter(db, {
@@ -34,6 +35,7 @@ export const auth = betterAuth({
         text: `Click here to verify your email address : ${url}`,
       });
     },
+    sendOnSignUp: true,
   },
   advanced: {
     cookiePrefix: "GadaElectronics",
@@ -51,4 +53,12 @@ export const getCurrentSession = cache(async () => {
     session: data.session,
     user: data.user,
   };
+});
+
+export const preventUnauthorized = cache(async () => {
+  const { user, session } = await getCurrentSession();
+  if (user && !user.emailVerified) {
+    redirect("/verify-email");
+  }
+  return { user, session };
 });
