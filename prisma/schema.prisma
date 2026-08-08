@@ -17,6 +17,8 @@ model User {
   updatedAt     DateTime  @updatedAt
   sessions      Session[]
   accounts      Account[]
+  cart          Cart?
+  orders        Order[]
 
   @@unique([email])
   @@map("user")
@@ -68,4 +70,164 @@ model Verification {
 
   @@index([identifier])
   @@map("verification")
+}
+
+model Category {
+  id          String   @id @default(cuid(2))
+  name        String
+  slug        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  products Product[]
+
+  @@index([slug])
+  @@map("categories")
+}
+
+model Product {
+  id          String  @id @default(cuid(2))
+  name        String
+  slug        String  @unique
+  description String
+  categoryId  String
+  baseImage   String?
+  isPublished Boolean @default(false)
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  archivedAt DateTime?
+
+  category    Category        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  options     ProductOption[]
+  productSKUs ProductSKU[]
+
+  @@index([slug])
+  @@index([categoryId])
+  @@map("products")
+}
+
+// option eg size and color
+model ProductOption {
+  id        String @id @default(cuid(2))
+  productId String
+  name      String // Eg: color,size...
+
+  product Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
+  values  ProductOptionValue[]
+
+  @@unique([productId, name])
+  @@map("product_options")
+}
+
+// option value, like big, white
+model ProductOptionValue {
+  id       String @id @default(cuid(2))
+  optionId String
+  value    String
+
+  option ProductOption @relation(fields: [optionId], references: [id])
+  skus   ProductSKU[]
+
+  @@map("option_values")
+}
+
+model ProductSKU {
+  id        String  @id @default(cuid(2))
+  productId String
+  sku       String  @unique
+  price     Decimal @db.Decimal(10, 2)
+  stock     Int     @default(0)
+  imageUrl  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  optionValues ProductOptionValue[]
+  product      Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
+  cartItems    CartItem[]
+  orderItems   OrderItem[]
+
+  @@index([productId])
+  @@map("product_skus")
+}
+
+// CART
+model Cart {
+  id     String  @id @default(cuid(2))
+  userId String? @unique // optional to allow guest users
+
+  user  User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items CartItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("carts")
+}
+
+model CartItem {
+  id       String @id @default(cuid())
+  cartId   String
+  skuId    String
+  quantity Int    @default(1)
+
+  cart Cart       @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  sku  ProductSKU @relation(fields: [skuId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([cartId, skuId])
+  @@map("cart_items")
+}
+
+// Order system
+enum OrderStatus {
+  PENDING
+  PAID
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+model Order {
+  id           String      @id @default(cuid(2))
+  userId       String?
+  status       OrderStatus @default(PENDING)
+  totalAmount  Decimal     @db.Decimal(10, 2)
+  shippingInfo Json
+
+  user  User?       @relation(fields: [userId], references: [id])
+  items OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("orders")
+}
+
+model OrderItem {
+  id      String  @id @default(cuid(2))
+  orderId String
+  skuId   String?
+
+  // product details
+  productName String
+  skuCode     String
+  quantity    Int
+  unitPrice   Decimal @db.Decimal(10, 2)
+  totalPrice  Decimal @db.Decimal(10, 2)
+
+  order Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  sku   ProductSKU? @relation(fields: [skuId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@map("order_items")
 }

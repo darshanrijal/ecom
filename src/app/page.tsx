@@ -9,6 +9,7 @@ export default async function Home() {
         <pre>{JSON.stringify({ session, user }, null, 2)}</pre>
         <LogoutButton />
       </main>
+      
     );
   }
 
