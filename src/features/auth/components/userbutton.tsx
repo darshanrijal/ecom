@@ -14,7 +14,6 @@ import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { formatDate } from "date-fns";
 import { Check, Monitor, Smartphone, Tablet, TrashIcon } from "lucide-react";
-import { TooltipTitle } from "./tooltip-title";
 import { Button } from "@/components/ui/button";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -193,48 +192,47 @@ export const UserButton = ({ className }: UserButtonProps) => {
   }
 
   return (
-    <TooltipTitle
-      title={data?.user.name ?? "User"}
-      render={
-        <Popover
-          open={openPopover}
-          onOpenChange={(open) => {
-            if (!isLoggedIn) {
-              return;
-            }
-            setOpenPopover(open);
-          }}
-        >
-          <PopoverTrigger
-            nativeButton={false}
-            render={
-              <Avatar className={cn("cursor-pointer", className)}>
-                <AvatarImage
-                  src={data?.user.image ?? undefined}
-                  alt={data?.user.name ?? "User"}
-                  className="hover:grayscale"
-                />
+    <Popover
+      open={openPopover}
+      onOpenChange={(open) => {
+        if (!isLoggedIn) {
+          return;
+        }
+        setOpenPopover(open);
+      }}
+    >
+      <PopoverTrigger
+        nativeButton={false}
+        render={
+          <Avatar className={cn("cursor-pointer", className)}>
+            <AvatarImage
+              src={data?.user.image ?? undefined}
+              alt={data?.user.name ?? "User"}
+              className="hover:grayscale"
+            />
 
-                <AvatarFallback>{initials}</AvatarFallback>
-              </Avatar>
-            }
-          />
+            <AvatarFallback>{initials}</AvatarFallback>
+          </Avatar>
+        }
+      />
 
-          <PopoverContent className="w-96">
-            <PopoverHeader>
-              <PopoverTitle>Your active sessions</PopoverTitle>
-            </PopoverHeader>
-            <ActiveSessions />
+      <PopoverContent className="w-96">
+        <div>
+          <p className="font-semibold">{data?.user.name}</p>
+          <p className="text-muted-foreground">{data?.user.email}</p>
+        </div>
+        <PopoverHeader className="mt-2">
+          <PopoverTitle>Your active sessions</PopoverTitle>
+        </PopoverHeader>
+        <ActiveSessions />
 
-            <div>
-              <Button disabled={isLoggingOut} onClick={handleSignOut}>
-                {!!isLoggingOut && <Spinner className="text-sm" />}
-                Sign out
-              </Button>
-            </div>
-          </PopoverContent>
-        </Popover>
-      }
-    />
+        <div>
+          <Button disabled={isLoggingOut} onClick={handleSignOut}>
+            {!!isLoggingOut && <Spinner className="text-sm" />}
+            Sign out
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 };

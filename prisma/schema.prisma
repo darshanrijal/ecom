@@ -127,7 +127,7 @@ model ProductOptionValue {
   optionId String
   value    String
 
-  option ProductOption @relation(fields: [optionId], references: [id])
+  option ProductOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
   skus   ProductSKU[]
 
   @@map("option_values")

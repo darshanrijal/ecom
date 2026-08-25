@@ -1,5 +1,14 @@
+import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { UserButton } from "@/features/auth/components/userbutton";
 import { CartButton } from "@/features/cart/components/cartbutton";
+import { MenuIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -22,6 +31,39 @@ export const Navbar = () => {
   return (
     <nav className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-xl">
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        {/* for mobile */}
+        <div className="md:hidden">
+          <Sheet>
+            <SheetTrigger
+              render={
+                <Button
+                  data-slot="sheet-trigger"
+                  size={"icon-xs"}
+                  variant={"outline"}
+                >
+                  <MenuIcon />
+                </Button>
+              }
+            />
+            <SheetContent side="left">
+              <SheetHeader>
+                <SheetTitle>Other links</SheetTitle>
+              </SheetHeader>
+
+              <div className="flex flex-col gap-4">
+                {navbarLinks.map((link) => (
+                  <Button
+                    key={link.label}
+                    variant={"link"}
+                    nativeButton={false}
+                    render={<Link href={link.url}>{link.label}</Link>}
+                  />
+                ))}
+              </div>
+            </SheetContent>
+          </Sheet>
+        </div>
+
         {/* Logo */}
         <Link
           href="/"

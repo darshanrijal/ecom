@@ -1,3 +1,4 @@
+"use client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,9 +9,11 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { useCart } from "@/hooks/use-cart";
 import { ShoppingCartIcon } from "lucide-react";
 
 export const CartButton = () => {
+  const { items } = useCart();
   return (
     <Sheet>
       <SheetTrigger
@@ -24,9 +27,11 @@ export const CartButton = () => {
             >
               <ShoppingCartIcon />
             </Button>
-            <Badge className="absolute -top-2 -right-4 rounded-full bg-orange-400">
-              9
-            </Badge>
+            {items.length !== 0 && (
+              <Badge className="absolute -top-2 -right-4 rounded-full bg-orange-400">
+                {items.length}
+              </Badge>
+            )}
           </div>
         }
       />

@@ -5,6 +5,7 @@ import {
   publicProcedure,
   router,
 } from "./trpc";
+import { cartRouter } from "./routers/cart-router";
 
 export const appRouter = router({
   health: publicProcedure.query(() => ({
@@ -32,6 +33,7 @@ export const appRouter = router({
         },
       });
     }),
+  cart: cartRouter,
 });
 
 export type AppRouter = typeof appRouter;
