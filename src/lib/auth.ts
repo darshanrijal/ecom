@@ -30,7 +30,7 @@ export const auth = betterAuth({
     sendVerificationEmail: async ({ url, user }) => {
       await resend.emails.send({
         to: user.email,
-        from: "emailVerification@darshanrijal.com.np",
+        from: "emails@darshanrijal.com.np",
         subject: "Verify your email address",
         text: `Click here to verify your email address : ${url}`,
       });

@@ -5,12 +5,12 @@ import superjson from "superjson";
 import z, { ZodError } from "zod";
 
 export const createTRPCContext = async (opts: { headers: Headers }) => {
-  const sessionData = await auth.api.getSession({
+  const session = await auth.api.getSession({
     headers: opts.headers,
   });
   return {
     db,
-    sessionData,
+    session,
     ...opts,
   };
 };
@@ -34,13 +34,13 @@ export const { createCallerFactory, router } = t;
 export const publicProcedure = t.procedure;
 
 export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
-  if (!ctx.sessionData?.user) {
+  if (!ctx.session?.user) {
     throw new TRPCError({ code: "UNAUTHORIZED" });
   }
   return next({
     ctx: {
-      session: ctx.sessionData.session,
-      user: ctx.sessionData.user,
+      session: ctx.session.session,
+      user: ctx.session.user,
     },
   });
 });

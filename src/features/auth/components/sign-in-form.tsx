@@ -23,7 +23,7 @@ export const SignInForm = () => {
     password: z.string().nonempty("Your password is required"),
   });
   type FormValues = z.infer<typeof formSchema>;
-  const [isPassword, setIsPassword] = useState(false);
+  const [isPassword, setIsPassword] = useState(true);
   const [authError, setAuthError] = useState("");
   const [isPending, startTransition] = useTransition();
   const form = useForm<FormValues>({

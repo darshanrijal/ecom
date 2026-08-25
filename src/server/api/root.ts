@@ -1,7 +1,37 @@
-import { createCallerFactory, publicProcedure, router } from "./trpc";
+import z from "zod";
+import {
+  createCallerFactory,
+  protectedProcedure,
+  publicProcedure,
+  router,
+} from "./trpc";
 
 export const appRouter = router({
-  getServerDateTime: publicProcedure.query(() => new Date()),
+  health: publicProcedure.query(() => ({
+    status: "OK",
+    timestamp: new Date(),
+  })),
+  getActiveSessions: protectedProcedure.query(async ({ ctx }) => {
+    const sessions = await ctx.db.session.findMany({
+      where: {
+        userId: ctx.user.id,
+      },
+      orderBy: {
+        updatedAt: "desc",
+      },
+    });
+    return sessions;
+  }),
+  deleteSession: protectedProcedure
+    .input(z.object({ sessionId: z.string().nonempty() }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db.session.delete({
+        where: {
+          id: input.sessionId,
+          userId: ctx.user.id,
+        },
+      });
+    }),
 });
 
 export type AppRouter = typeof appRouter;

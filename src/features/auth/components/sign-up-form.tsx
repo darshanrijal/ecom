@@ -24,7 +24,7 @@ export const SignUpForm = () => {
     password: z.string().min(8, "Password should be minimum 8 characters"),
   });
   type FormValues = z.infer<typeof formSchema>;
-  const [isPassword, setIsPassword] = useState(false);
+  const [isPassword, setIsPassword] = useState(true);
   const [authError, setAuthError] = useState("");
   const [isPending, startTransition] = useTransition();
   const form = useForm<FormValues>({
