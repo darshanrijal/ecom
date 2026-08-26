@@ -81,6 +81,7 @@ export async function GET() {
     slug: string;
     category: string;
     description: string;
+    baseImage?: string;
     published?: boolean;
     archived?: boolean;
     variants: Variant[];
@@ -94,6 +95,7 @@ export async function GET() {
     {
       name: "Apple iPhone 17 Pro",
       slug: "apple-iphone-17-pro",
+      baseImage: "https://picsum.photos/seed/apple-iphone-17-pro/400/400",
       category: "smartphones",
       description:
         "Premium Apple smartphone with a Pro camera system, high-performance processor, and advanced display.",
@@ -122,6 +124,7 @@ export async function GET() {
     {
       name: "Apple iPhone 17",
       slug: "apple-iphone-17",
+      baseImage: "https://picsum.photos/seed/apple-iphone-17/400/400",
       category: "smartphones",
       description:
         "Modern iPhone combining powerful performance, excellent cameras, and long battery life.",
@@ -144,6 +147,7 @@ export async function GET() {
     {
       name: "Samsung Galaxy S26 Ultra",
       slug: "samsung-galaxy-s26-ultra",
+      baseImage: "https://picsum.photos/seed/samsung-galaxy-s26-ultra/400/400",
       category: "smartphones",
       description:
         "Flagship Samsung smartphone featuring an advanced camera system, large AMOLED display, and S Pen.",
@@ -166,6 +170,7 @@ export async function GET() {
     {
       name: "Samsung Galaxy S26",
       slug: "samsung-galaxy-s26",
+      baseImage: "https://picsum.photos/seed/samsung-galaxy-s26/400/400",
       category: "smartphones",
       description:
         "Compact flagship smartphone with a high refresh rate AMOLED display and powerful performance.",
@@ -188,6 +193,7 @@ export async function GET() {
     {
       name: "Google Pixel 10 Pro",
       slug: "google-pixel-10-pro",
+      baseImage: "https://picsum.photos/seed/google-pixel-10-pro/400/400",
       category: "smartphones",
       description:
         "Google flagship phone with advanced computational photography and clean Android software.",
@@ -214,6 +220,7 @@ export async function GET() {
     {
       name: "Apple MacBook Air M4",
       slug: "apple-macbook-air-m4",
+      baseImage: "https://picsum.photos/seed/apple-macbook-air-m4/400/400",
       category: "laptops",
       description:
         "Thin and lightweight MacBook Air powered by Apple's M4 chip.",
@@ -236,6 +243,7 @@ export async function GET() {
     {
       name: "Apple MacBook Pro M4 Pro",
       slug: "apple-macbook-pro-m4-pro",
+      baseImage: "https://picsum.photos/seed/apple-macbook-pro-m4-pro/400/400",
       category: "laptops",
       description:
         "Professional MacBook with M4 Pro performance and a high-resolution Liquid Retina XDR display.",
@@ -258,6 +266,7 @@ export async function GET() {
     {
       name: "Dell XPS 14",
       slug: "dell-xps-14",
+      baseImage: "https://picsum.photos/seed/dell-xps-14/400/400",
       category: "laptops",
       description:
         "Premium Windows laptop designed for productivity and creative workloads.",
@@ -280,6 +289,7 @@ export async function GET() {
     {
       name: "ASUS ROG Zephyrus G16",
       slug: "asus-rog-zephyrus-g16",
+      baseImage: "https://picsum.photos/seed/asus-rog-zephyrus-g16/400/400",
       category: "laptops",
       description:
         "High-performance gaming laptop with a powerful GPU and high-refresh-rate display.",
@@ -302,6 +312,7 @@ export async function GET() {
     {
       name: "Lenovo ThinkPad X1 Carbon",
       slug: "lenovo-thinkpad-x1-carbon",
+      baseImage: "https://picsum.photos/seed/lenovo-thinkpad-x1-carbon/400/400",
       category: "laptops",
       description:
         "Business-focused ultrabook with a lightweight chassis and excellent keyboard.",
@@ -328,6 +339,7 @@ export async function GET() {
     {
       name: "Apple iPad Pro M4",
       slug: "apple-ipad-pro-m4",
+      baseImage: "https://picsum.photos/seed/apple-ipad-pro-m4/400/400",
       category: "tablets",
       description:
         "High-end iPad with an OLED display and M4 performance for professional workloads.",
@@ -350,6 +362,7 @@ export async function GET() {
     {
       name: "Apple iPad Air M3",
       slug: "apple-ipad-air-m3",
+      baseImage: "https://picsum.photos/seed/apple-ipad-air-m3/400/400",
       category: "tablets",
       description: "Versatile iPad Air powered by Apple's M3 chip.",
       variants: [
@@ -371,6 +384,8 @@ export async function GET() {
     {
       name: "Samsung Galaxy Tab S10 Ultra",
       slug: "samsung-galaxy-tab-s10-ultra",
+      baseImage:
+        "https://picsum.photos/seed/samsung-galaxy-tab-s10-ultra/400/400",
       category: "tablets",
       description:
         "Large premium Android tablet with an AMOLED display and productivity features.",
@@ -393,6 +408,7 @@ export async function GET() {
     {
       name: "Samsung Galaxy Tab S10",
       slug: "samsung-galaxy-tab-s10",
+      baseImage: "https://picsum.photos/seed/samsung-galaxy-tab-s10/400/400",
       category: "tablets",
       description:
         "Premium Android tablet suitable for entertainment and productivity.",
@@ -415,6 +431,7 @@ export async function GET() {
     {
       name: "Xiaomi Pad 7",
       slug: "xiaomi-pad-7",
+      baseImage: "https://picsum.photos/seed/xiaomi-pad-7/400/400",
       category: "tablets",
       description:
         "Affordable high-performance Android tablet with a smooth high-resolution display.",
@@ -441,6 +458,7 @@ export async function GET() {
     {
       name: "Apple AirPods Pro 3",
       slug: "apple-airpods-pro-3",
+      baseImage: "https://picsum.photos/seed/apple-airpods-pro-3/400/400",
       category: "headphones-earbuds",
       description:
         "Premium wireless earbuds with active noise cancellation and spatial audio.",
@@ -457,6 +475,7 @@ export async function GET() {
     {
       name: "Sony WH-1000XM6",
       slug: "sony-wh-1000xm6",
+      baseImage: "https://picsum.photos/seed/sony-wh-1000xm6/400/400",
       category: "headphones-earbuds",
       description:
         "Premium over-ear headphones with industry-leading noise cancellation.",
@@ -479,6 +498,7 @@ export async function GET() {
     {
       name: "Samsung Galaxy Buds 4 Pro",
       slug: "samsung-galaxy-buds-4-pro",
+      baseImage: "https://picsum.photos/seed/samsung-galaxy-buds-4-pro/400/400",
       category: "headphones-earbuds",
       description:
         "Premium Samsung wireless earbuds with noise cancellation and high-quality audio.",
@@ -501,6 +521,7 @@ export async function GET() {
     {
       name: "Sony WF-1000XM6",
       slug: "sony-wf-1000xm6",
+      baseImage: "https://picsum.photos/seed/sony-wf-1000xm6/400/400",
       category: "headphones-earbuds",
       description:
         "Compact flagship wireless earbuds with advanced noise cancellation.",
@@ -517,6 +538,7 @@ export async function GET() {
     {
       name: "JBL Tune 770NC",
       slug: "jbl-tune-770nc",
+      baseImage: "https://picsum.photos/seed/jbl-tune-770nc/400/400",
       category: "headphones-earbuds",
       description:
         "Affordable wireless headphones with active noise cancellation and long battery life.",
@@ -543,6 +565,7 @@ export async function GET() {
     {
       name: "Apple Watch Series 11",
       slug: "apple-watch-series-11",
+      baseImage: "https://picsum.photos/seed/apple-watch-series-11/400/400",
       category: "smartwatches",
       description:
         "Advanced Apple Watch with health tracking, fitness features, and smart notifications.",
@@ -565,6 +588,7 @@ export async function GET() {
     {
       name: "Apple Watch Ultra 3",
       slug: "apple-watch-ultra-3",
+      baseImage: "https://picsum.photos/seed/apple-watch-ultra-3/400/400",
       category: "smartwatches",
       description:
         "Rugged Apple Watch designed for outdoor activities, fitness, and demanding use.",
@@ -581,6 +605,7 @@ export async function GET() {
     {
       name: "Samsung Galaxy Watch 8",
       slug: "samsung-galaxy-watch-8",
+      baseImage: "https://picsum.photos/seed/samsung-galaxy-watch-8/400/400",
       category: "smartwatches",
       description:
         "Premium Android smartwatch with health, fitness, and smart-device features.",
@@ -603,6 +628,7 @@ export async function GET() {
     {
       name: "Google Pixel Watch 4",
       slug: "google-pixel-watch-4",
+      baseImage: "https://picsum.photos/seed/google-pixel-watch-4/400/400",
       category: "smartwatches",
       description:
         "Google smartwatch with health tracking and deep Android integration.",
@@ -619,6 +645,7 @@ export async function GET() {
     {
       name: "Garmin Venu 4",
       slug: "garmin-venu-4",
+      baseImage: "https://picsum.photos/seed/garmin-venu-4/400/400",
       category: "smartwatches",
       description:
         "Fitness-focused smartwatch with advanced health and workout tracking.",
@@ -639,6 +666,7 @@ export async function GET() {
     {
       name: "Sony Alpha A7 IV",
       slug: "sony-alpha-a7-iv",
+      baseImage: "https://picsum.photos/seed/sony-alpha-a7-iv/400/400",
       category: "cameras",
       description:
         "Full-frame mirrorless camera designed for photography and video production.",
@@ -661,6 +689,7 @@ export async function GET() {
     {
       name: "Canon EOS R6 Mark II",
       slug: "canon-eos-r6-mark-ii",
+      baseImage: "https://picsum.photos/seed/canon-eos-r6-mark-ii/400/400",
       category: "cameras",
       description:
         "Full-frame mirrorless camera offering fast autofocus and strong video performance.",
@@ -677,6 +706,7 @@ export async function GET() {
     {
       name: "Fujifilm X-T5",
       slug: "fujifilm-x-t5",
+      baseImage: "https://picsum.photos/seed/fujifilm-x-t5/400/400",
       category: "cameras",
       description:
         "High-resolution APS-C mirrorless camera with classic Fujifilm controls.",
@@ -699,6 +729,7 @@ export async function GET() {
     {
       name: "GoPro HERO 14 Black",
       slug: "gopro-hero-14-black",
+      baseImage: "https://picsum.photos/seed/gopro-hero-14-black/400/400",
       category: "cameras",
       description:
         "Rugged action camera designed for high-resolution adventure footage.",
@@ -715,6 +746,7 @@ export async function GET() {
     {
       name: "DJI Osmo Pocket 4",
       slug: "dji-osmo-pocket-4",
+      baseImage: "https://picsum.photos/seed/dji-osmo-pocket-4/400/400",
       category: "cameras",
       description:
         "Compact handheld camera with a stabilized gimbal and advanced video features.",
@@ -741,6 +773,7 @@ export async function GET() {
     {
       name: "Sony PlayStation 5 Slim",
       slug: "sony-playstation-5-slim",
+      baseImage: "https://picsum.photos/seed/sony-playstation-5-slim/400/400",
       category: "gaming",
       description:
         "Compact PlayStation 5 gaming console with high-speed SSD storage.",
@@ -763,6 +796,7 @@ export async function GET() {
     {
       name: "Microsoft Xbox Series X",
       slug: "microsoft-xbox-series-x",
+      baseImage: "https://picsum.photos/seed/microsoft-xbox-series-x/400/400",
       category: "gaming",
       description: "High-performance Xbox console designed for 4K gaming.",
       variants: [
@@ -778,6 +812,7 @@ export async function GET() {
     {
       name: "Nintendo Switch 2",
       slug: "nintendo-switch-2",
+      baseImage: "https://picsum.photos/seed/nintendo-switch-2/400/400",
       category: "gaming",
       description:
         "Hybrid gaming console that works as both a handheld and home console.",
@@ -794,6 +829,8 @@ export async function GET() {
     {
       name: "Sony DualSense Wireless Controller",
       slug: "sony-dualsense-wireless-controller",
+      baseImage:
+        "https://picsum.photos/seed/sony-dualsense-wireless-controller/400/400",
       category: "gaming",
       description:
         "Wireless PlayStation controller with adaptive triggers and haptic feedback.",
@@ -816,6 +853,8 @@ export async function GET() {
     {
       name: "Logitech G Pro X Superlight 2",
       slug: "logitech-g-pro-x-superlight-2",
+      baseImage:
+        "https://picsum.photos/seed/logitech-g-pro-x-superlight-2/400/400",
       category: "gaming",
       description: "Lightweight high-performance wireless gaming mouse.",
       variants: [
@@ -841,6 +880,7 @@ export async function GET() {
     {
       name: "LG UltraGear 27 OLED",
       slug: "lg-ultragear-27-oled",
+      baseImage: "https://picsum.photos/seed/lg-ultragear-27-oled/400/400",
       category: "monitors",
       description:
         "27-inch OLED gaming monitor with high refresh rate and extremely fast response time.",
@@ -857,6 +897,7 @@ export async function GET() {
     {
       name: "Samsung Odyssey G7 32",
       slug: "samsung-odyssey-g7-32",
+      baseImage: "https://picsum.photos/seed/samsung-odyssey-g7-32/400/400",
       category: "monitors",
       description:
         "32-inch curved gaming monitor with high refresh rate and QHD resolution.",
@@ -873,6 +914,7 @@ export async function GET() {
     {
       name: "Dell UltraSharp U2724D",
       slug: "dell-ultrasharp-u2724d",
+      baseImage: "https://picsum.photos/seed/dell-ultrasharp-u2724d/400/400",
       category: "monitors",
       description:
         "Professional 27-inch monitor designed for productivity and accurate visuals.",
@@ -889,6 +931,7 @@ export async function GET() {
     {
       name: "LG UltraWide 34",
       slug: "lg-ultrawide-34",
+      baseImage: "https://picsum.photos/seed/lg-ultrawide-34/400/400",
       category: "monitors",
       description:
         "34-inch ultrawide monitor suitable for productivity and multitasking.",
@@ -905,6 +948,7 @@ export async function GET() {
     {
       name: "ASUS ProArt 27",
       slug: "asus-proart-27",
+      baseImage: "https://picsum.photos/seed/asus-proart-27/400/400",
       category: "monitors",
       description:
         "Professional monitor designed for photographers, designers, and content creators.",
@@ -925,6 +969,7 @@ export async function GET() {
     {
       name: "Apple Magic Keyboard",
       slug: "apple-magic-keyboard",
+      baseImage: "https://picsum.photos/seed/apple-magic-keyboard/400/400",
       category: "computer-accessories",
       description: "Wireless keyboard designed for Mac and iPad.",
       variants: [
@@ -940,6 +985,7 @@ export async function GET() {
     {
       name: "Logitech MX Keys S",
       slug: "logitech-mx-keys-s",
+      baseImage: "https://picsum.photos/seed/logitech-mx-keys-s/400/400",
       category: "computer-accessories",
       description:
         "Premium wireless keyboard designed for productivity and multi-device use.",
@@ -962,6 +1008,7 @@ export async function GET() {
     {
       name: "Logitech MX Master 4",
       slug: "logitech-mx-master-4",
+      baseImage: "https://picsum.photos/seed/logitech-mx-master-4/400/400",
       category: "computer-accessories",
       description:
         "Advanced wireless productivity mouse with precision tracking and customizable controls.",
@@ -978,6 +1025,7 @@ export async function GET() {
     {
       name: "Apple Studio Display",
       slug: "apple-studio-display",
+      baseImage: "https://picsum.photos/seed/apple-studio-display/400/400",
       category: "computer-accessories",
       description:
         "High-resolution 27-inch display designed for Mac users and creative professionals.",
@@ -1000,6 +1048,7 @@ export async function GET() {
     {
       name: "Logitech Brio 4K",
       slug: "logitech-brio-4k",
+      baseImage: "https://picsum.photos/seed/logitech-brio-4k/400/400",
       category: "computer-accessories",
       description:
         "4K webcam designed for video calls, streaming, and content creation.",
@@ -1020,6 +1069,7 @@ export async function GET() {
     {
       name: "TP-Link Archer AX73",
       slug: "tp-link-archer-ax73",
+      baseImage: "https://picsum.photos/seed/tp-link-archer-ax73/400/400",
       category: "networking",
       description: "Wi-Fi 6 router designed for high-speed home networking.",
       variants: [
@@ -1035,6 +1085,7 @@ export async function GET() {
     {
       name: "TP-Link Deco X50",
       slug: "tp-link-deco-x50",
+      baseImage: "https://picsum.photos/seed/tp-link-deco-x50/400/400",
       category: "networking",
       description: "Wi-Fi 6 mesh system for whole-home wireless coverage.",
       variants: [
@@ -1056,6 +1107,7 @@ export async function GET() {
     {
       name: "ASUS ROG Rapture GT-BE98",
       slug: "asus-rog-rapture-gt-be98",
+      baseImage: "https://picsum.photos/seed/asus-rog-rapture-gt-be98/400/400",
       category: "networking",
       description:
         "High-end Wi-Fi 7 gaming router with advanced wireless performance.",
@@ -1072,6 +1124,7 @@ export async function GET() {
     {
       name: "Netgear Nighthawk AX5400",
       slug: "netgear-nighthawk-ax5400",
+      baseImage: "https://picsum.photos/seed/netgear-nighthawk-ax5400/400/400",
       category: "networking",
       description:
         "High-performance Wi-Fi 6 router for homes with multiple connected devices.",
@@ -1088,6 +1141,8 @@ export async function GET() {
     {
       name: "TP-Link 8-Port Gigabit Switch",
       slug: "tp-link-8-port-gigabit-switch",
+      baseImage:
+        "https://picsum.photos/seed/tp-link-8-port-gigabit-switch/400/400",
       category: "networking",
       description: "Compact unmanaged gigabit Ethernet switch.",
       variants: [
@@ -1107,6 +1162,7 @@ export async function GET() {
     {
       name: "Samsung 990 Pro NVMe SSD",
       slug: "samsung-990-pro-nvme-ssd",
+      baseImage: "https://picsum.photos/seed/samsung-990-pro-nvme-ssd/400/400",
       category: "storage",
       description:
         "High-performance PCIe NVMe SSD for gaming, workstations, and desktops.",
@@ -1129,6 +1185,7 @@ export async function GET() {
     {
       name: "WD Black SN850X NVMe SSD",
       slug: "wd-black-sn850x-nvme-ssd",
+      baseImage: "https://picsum.photos/seed/wd-black-sn850x-nvme-ssd/400/400",
       category: "storage",
       description:
         "High-speed NVMe SSD optimized for gaming and demanding applications.",
@@ -1151,6 +1208,8 @@ export async function GET() {
     {
       name: "SanDisk Extreme Portable SSD",
       slug: "sandisk-extreme-portable-ssd",
+      baseImage:
+        "https://picsum.photos/seed/sandisk-extreme-portable-ssd/400/400",
       category: "storage",
       description: "Portable rugged SSD for fast external storage and backups.",
       variants: [
@@ -1172,6 +1231,7 @@ export async function GET() {
     {
       name: "Samsung PRO Plus microSD",
       slug: "samsung-pro-plus-microsd",
+      baseImage: "https://picsum.photos/seed/samsung-pro-plus-microsd/400/400",
       category: "storage",
       description:
         "High-speed microSD card for cameras, phones, tablets, and gaming devices.",
@@ -1200,6 +1260,8 @@ export async function GET() {
     {
       name: "SanDisk Ultra Dual Drive USB-C",
       slug: "sandisk-ultra-dual-drive-usb-c",
+      baseImage:
+        "https://picsum.photos/seed/sandisk-ultra-dual-drive-usb-c/400/400",
       category: "storage",
       description: "USB flash drive with USB-C and USB-A connectors.",
       variants: [
@@ -1225,6 +1287,7 @@ export async function GET() {
     {
       name: "Google Nest Hub Max",
       slug: "google-nest-hub-max",
+      baseImage: "https://picsum.photos/seed/google-nest-hub-max/400/400",
       category: "smart-home",
       description:
         "Smart display with Google Assistant, media playback, and smart-home controls.",
@@ -1241,6 +1304,7 @@ export async function GET() {
     {
       name: "Amazon Echo Show 8",
       slug: "amazon-echo-show-8",
+      baseImage: "https://picsum.photos/seed/amazon-echo-show-8/400/400",
       category: "smart-home",
       description:
         "Smart display for entertainment, video calls, and smart-home control.",
@@ -1257,6 +1321,7 @@ export async function GET() {
     {
       name: "Google Nest Audio",
       slug: "google-nest-audio",
+      baseImage: "https://picsum.photos/seed/google-nest-audio/400/400",
       category: "smart-home",
       description:
         "Smart speaker with Google Assistant and room-filling audio.",
@@ -1279,6 +1344,7 @@ export async function GET() {
     {
       name: "Philips Hue Starter Kit",
       slug: "philips-hue-starter-kit",
+      baseImage: "https://picsum.photos/seed/philips-hue-starter-kit/400/400",
       category: "smart-home",
       description:
         "Smart lighting starter kit with app-controlled color and brightness.",
@@ -1295,6 +1361,7 @@ export async function GET() {
     {
       name: "TP-Link Tapo C225",
       slug: "tp-link-tapo-c225",
+      baseImage: "https://picsum.photos/seed/tp-link-tapo-c225/400/400",
       category: "smart-home",
       description:
         "Indoor smart security camera with pan and tilt functionality.",
@@ -1360,6 +1427,7 @@ export async function GET() {
         slug: product.slug,
         description: product.description,
         categoryId,
+        baseImage: product.baseImage ?? null,
         isPublished: product.published ?? true,
         archivedAt: product.archived ? new Date() : null,
       },

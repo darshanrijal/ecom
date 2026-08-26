@@ -2,6 +2,8 @@
 import { trpc } from "@/__rpc/client";
 import { Spinner } from "@/components/ui/spinner";
 import { useEffect, useRef } from "react";
+import { ProductCard } from "./product-card";
+import { ProductCardSkeleton } from "./product-card-skeleton";
 
 export function ProductList() {
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -39,7 +41,17 @@ export function ProductList() {
   }, [fetchNextPage, hasNextPage]);
 
   if (isLoading) {
-    return <div>Loading products...</div>;
+    return (
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {["sk1", "sk2", "sk3", "sk4", "sk5", "sk6", "sk7", "sk8"].map(
+            (id) => (
+              <ProductCardSkeleton key={id} />
+            )
+          )}
+        </div>
+      </div>
+    );
   }
   if (isError) {
     return <div>Error: {error.message}</div>;
@@ -49,12 +61,10 @@ export function ProductList() {
   const products = data?.pages.flatMap((page) => page.products) ?? [];
 
   return (
-    <div>
-      <div className="grid grid-cols-3 gap-4">
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {products.map((product) => (
-          <div key={product.id} className="rounded border p-4">
-            <h3>{product.name}</h3>
-          </div>
+          <ProductCard key={product.id} product={product} />
         ))}
       </div>
       <div ref={loadMoreRef} />

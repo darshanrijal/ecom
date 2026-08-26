@@ -18,6 +18,15 @@ export const productRouter = router({
         cursor: cursor ? { id: cursor } : undefined,
         skip: cursor ? 1 : 0,
         orderBy: { id: "asc" },
+        include: {
+          productSKUs: {
+            include: {
+              optionValues: {
+                include: { option: true },
+              },
+            },
+          },
+        },
       });
 
       let nextCursor: typeof cursor;
