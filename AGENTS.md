@@ -79,4 +79,4 @@ No `.env.example` exists. Copy values from `.env` (if present) or set up fresh.
 
 - `src/components/ui/*.tsx` are shadcn-generated; Biome linting is disabled for them. Don't manually edit unless regenerating.
 - Path alias `@/*` maps to `./src/*`.
-- Dual lockfiles exist (`package-lock.json` + `bun.lock`). Use npm to stay consistent with scripts.
+- Use bun for scripts and pm instead of npm

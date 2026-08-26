@@ -42,6 +42,11 @@ export const CartButton = () => {
             Add, remove or update quantity of your cart items
           </SheetDescription>
         </SheetHeader>
+        <div>
+          {items.map((item) => (
+            <p key={item.id}>{item.skuId}</p>
+          ))}
+        </div>
       </SheetContent>
     </Sheet>
   );

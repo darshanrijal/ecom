@@ -54,7 +54,11 @@ export function ProductList() {
     );
   }
   if (isError) {
-    return <div>Error: {error.message}</div>;
+    return (
+      <div className="flex min-h-dvh items-center justify-center">
+        Error: {error.message}
+      </div>
+    );
   }
 
   // Flatten array across pages
