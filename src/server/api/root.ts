@@ -6,6 +6,7 @@ import {
   router,
 } from "./trpc";
 import { cartRouter } from "./routers/cart-router";
+import { productRouter } from "./routers/product-router";
 
 export const appRouter = router({
   health: publicProcedure.query(() => ({
@@ -21,7 +22,10 @@ export const appRouter = router({
         updatedAt: "desc",
       },
     });
-    return sessions;
+    const data = sessions.map(
+      ({ token, expiresAt, updatedAt, userId, ...others }) => others
+    );
+    return data;
   }),
   deleteSession: protectedProcedure
     .input(z.object({ sessionId: z.string().nonempty() }))
@@ -34,6 +38,7 @@ export const appRouter = router({
       });
     }),
   cart: cartRouter,
+  products: productRouter,
 });
 
 export type AppRouter = typeof appRouter;
