@@ -11,6 +11,7 @@ import { CartButton } from "@/features/cart/components/cartbutton";
 import { MenuIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { SearchProductsButton } from "./search-products-button";
 
 const navbarLinks = [
   {
@@ -94,6 +95,7 @@ export const Navbar = () => {
 
         {/* Actions */}
         <div className="flex items-center gap-2">
+          <SearchProductsButton />
           <div className="rounded-full border bg-background p-1 shadow-sm transition-shadow hover:shadow-md">
             <UserButton />
           </div>

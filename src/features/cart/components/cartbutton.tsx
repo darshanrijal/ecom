@@ -10,10 +10,12 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { useCart } from "@/hooks/use-cart";
+import { authClient } from "@/lib/auth-client";
 import { ShoppingCartIcon } from "lucide-react";
 
 export const CartButton = () => {
-  const { items } = useCart();
+  const { items, clearGuestCart } = useCart();
+  const { data: authData } = authClient.useSession();
   return (
     <Sheet>
       <SheetTrigger
@@ -47,6 +49,14 @@ export const CartButton = () => {
             <p key={item.id}>{item.skuId}</p>
           ))}
         </div>
+        {!authData?.session && items.length !== 0 && (
+          <Button onClick={() => clearGuestCart()}>Clear Cart</Button>
+        )}
+        {items.length === 0 && (
+          <p className="max-w-xs pl-10 text-muted-foreground">
+            Your cart is empty. Add items to cart to show them here.
+          </p>
+        )}
       </SheetContent>
     </Sheet>
   );

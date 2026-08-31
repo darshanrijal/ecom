@@ -1,7 +1,6 @@
 "use client";
 
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AddToCartButton } from "./add-to-cart-btn";
@@ -46,21 +45,6 @@ function formatPrice(price: unknown): string {
 export function ProductCard({ product }: ProductCardProps) {
   const { productSKUs, name, slug, baseImage } = product;
 
-  const optionGroups = useMemo(() => {
-    const groups = new Map<string, Map<string, string>>();
-
-    for (const sku of productSKUs) {
-      for (const ov of sku.optionValues) {
-        if (!groups.has(ov.option.name)) {
-          groups.set(ov.option.name, new Map());
-        }
-        groups.get(ov.option.name)?.set(ov.id, ov.value);
-      }
-    }
-
-    return groups;
-  }, [productSKUs]);
-
   const [selectedOptionValueIds, setSelectedOptionValueIds] = useState<
     Map<string, string>
   >(() => new Map());
@@ -100,14 +84,6 @@ export function ProductCard({ product }: ProductCardProps) {
     autoSelectFirstVariant();
   }, [autoSelectFirstVariant]);
 
-  function handleOptionSelect(optionName: string, optionValueId: string) {
-    setSelectedOptionValueIds((prev) => {
-      const next = new Map(prev);
-      next.set(optionName, optionValueId);
-      return next;
-    });
-  }
-
   let displayPrice: string | null = null;
   if (selectedSku) {
     displayPrice = formatPrice(selectedSku.price);
@@ -139,29 +115,6 @@ export function ProductCard({ product }: ProductCardProps) {
             {displayPrice}
           </p>
         )}
-
-        {Array.from(optionGroups.entries()).map(([optionName, values]) => (
-          <div key={optionName} className="flex flex-col gap-1.5">
-            <span className="text-muted-foreground text-xs">{optionName}</span>
-            <div className="flex flex-wrap gap-1.5">
-              {Array.from(values.entries()).map(([valueId, value]) => (
-                <button
-                  key={valueId}
-                  type="button"
-                  onClick={() => handleOptionSelect(optionName, valueId)}
-                  className={cn(
-                    "rounded-md border px-2.5 py-1 text-xs transition-colors",
-                    selectedOptionValueIds.get(optionName) === valueId
-                      ? "border-foreground bg-foreground text-background"
-                      : "border-border bg-background text-foreground hover:border-foreground/40"
-                  )}
-                >
-                  {value}
-                </button>
-              ))}
-            </div>
-          </div>
-        ))}
       </div>
 
       <CardFooter className="px-4 pt-0 pb-4">
