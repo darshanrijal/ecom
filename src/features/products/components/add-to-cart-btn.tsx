@@ -248,14 +248,6 @@ export function AddToCartButton({
                     Rs. {Number(selectedSku.price).toLocaleString()}
                   </p>
                 </div>
-
-                <div className="text-right">
-                  <p className="text-muted-foreground text-sm">Stock</p>
-
-                  <p className="font-medium text-sm">
-                    {selectedSku.stock} available
-                  </p>
-                </div>
               </div>
             </div>
           )}

@@ -133,4 +133,16 @@ export const cartRouter = router({
         },
       });
     }),
+
+  createCart: protectedProcedure.mutation(async ({ ctx }) => {
+    await ctx.db.cart.upsert({
+      create: {
+        userId: ctx.user.id,
+      },
+      update: {},
+      where: {
+        userId: ctx.user.id,
+      },
+    });
+  }),
 });

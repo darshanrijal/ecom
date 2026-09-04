@@ -49,7 +49,7 @@ export const SearchProductsButton = () => {
   return (
     <div
       className={cn(
-        "fixed right-6 bottom-6 z-50 transform transition-all duration-300 ease-in-out",
+        "fixed right-6 bottom-6 z-50 hidden transform transition-all duration-300 ease-in-out xl:block",
         show
           ? "pointer-events-auto translate-y-0 opacity-100"
           : "pointer-events-none translate-y-4 opacity-0"
