@@ -1,6 +1,5 @@
 import z from "zod";
 import { publicProcedure, router } from "../trpc";
-import { db } from "@/lib/prisma";
 
 export const productRouter = router({
   getAllProducts: publicProcedure
@@ -10,21 +9,20 @@ export const productRouter = router({
         cursor: z.string().nullish(),
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const { limit, cursor } = input;
 
-      const products = await db.product.findMany({
+      const products = await ctx.db.product.findMany({
         take: limit + 1,
         cursor: cursor ? { id: cursor } : undefined,
         skip: cursor ? 1 : 0,
         orderBy: { id: "asc" },
         include: {
           productSKUs: {
-            include: {
-              optionValues: {
-                include: { option: true },
-              },
+            orderBy: {
+              price: "asc",
             },
+            take: 1,
           },
         },
       });
@@ -39,6 +37,50 @@ export const productRouter = router({
       return {
         products,
         nextCursor,
+      };
+    }),
+
+  getProductVariants: publicProcedure
+    .input(z.object({ productId: z.cuid2() }))
+    .query(async ({ ctx, input }) => {
+      const product = await ctx.db.product.findUnique({
+        where: {
+          id: input.productId,
+        },
+        select: {
+          options: {
+            include: {
+              values: true,
+            },
+          },
+
+          productSKUs: {
+            select: {
+              id: true,
+              price: true,
+              originalPrice: true,
+              stock: true,
+              imageUrl: true,
+
+              optionValues: {
+                select: {
+                  id: true,
+                  value: true,
+                  optionId: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!product) {
+        return null;
+      }
+
+      return {
+        options: product.options,
+        skus: product.productSKUs,
       };
     }),
 });

@@ -1,128 +1,127 @@
-"use client";
-
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import type { RouterOutputs } from "@/__rpc/client";
+import { cn } from "@/lib/utils";
+import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
 import { AddToCartButton } from "./add-to-cart-btn";
-import { ProductImage } from "./product-image";
-
-interface SkuOptionValue {
-  id: string;
-  value: string;
-  option: { id: string; name: string };
-}
-
-interface Sku {
-  id: string;
-  sku: string;
-  price: unknown;
-  stock: number;
-  imageUrl: string | null;
-  optionValues: SkuOptionValue[];
-}
-
-export interface ProductCardProduct {
-  id: string;
-  name: string;
-  slug: string;
-  description: string;
-  baseImage: string | null;
-  productSKUs: Sku[];
-}
 
 interface ProductCardProps {
-  product: ProductCardProduct;
+  product: RouterOutputs["products"]["getAllProducts"]["products"][number];
+
+  className?: string;
+  imageClassName?: string;
+  imageContainerClassName?: string;
+  contentClassName?: string;
+  nameClassName?: string;
+  priceClassName?: string;
 }
 
-function formatPrice(price: unknown): string {
-  return new Intl.NumberFormat("en-NP", {
-    style: "currency",
-    currency: "NPR",
-    maximumFractionDigits: 0,
-  }).format(Number(price));
-}
+export const ProductCard = ({
+  product,
+  className,
+  imageClassName,
+  imageContainerClassName,
+  contentClassName,
+  nameClassName,
+  priceClassName,
+}: ProductCardProps) => {
+  const [minPriceSku] = product.productSKUs;
 
-export function ProductCard({ product }: ProductCardProps) {
-  const { productSKUs, name, slug, baseImage } = product;
-
-  const [selectedOptionValueIds, setSelectedOptionValueIds] = useState<
-    Map<string, string>
-  >(() => new Map());
-
-  const selectedSku = useMemo(() => {
-    if (selectedOptionValueIds.size === 0) {
-      return null;
-    }
-
-    return (
-      productSKUs.find((sku) => {
-        const skuOptionIds = sku.optionValues.map((ov) => ov.id);
-        return (
-          skuOptionIds.length === selectedOptionValueIds.size &&
-          skuOptionIds.every((id) =>
-            selectedOptionValueIds.values().toArray().includes(id)
-          )
-        );
-      }) ?? null
-    );
-  }, [productSKUs, selectedOptionValueIds]);
-
-  const autoSelectFirstVariant = useCallback(() => {
-    if (productSKUs.length === 0) {
-      return;
-    }
-
-    const [firstSku] = productSKUs;
-    const initial = new Map<string, string>();
-    for (const ov of firstSku.optionValues) {
-      initial.set(ov.option.name, ov.id);
-    }
-    setSelectedOptionValueIds(initial);
-  }, [productSKUs]);
-
-  useEffect(() => {
-    autoSelectFirstVariant();
-  }, [autoSelectFirstVariant]);
-
-  let displayPrice: string | null = null;
-  if (selectedSku) {
-    displayPrice = formatPrice(selectedSku.price);
-  } else if (productSKUs[0]) {
-    displayPrice = formatPrice(productSKUs[0].price);
+  if (!minPriceSku) {
+    return null;
   }
 
-  const displayImage = selectedSku?.imageUrl ?? baseImage;
-  const isOutOfStock = selectedSku !== null && selectedSku.stock <= 0;
+  const price = Number(minPriceSku.price);
+  const originalPrice = Number(minPriceSku.originalPrice);
+
+  const hasDiscount = originalPrice > price;
+
+  const discountPercentage = hasDiscount
+    ? Math.round(((originalPrice - price) / originalPrice) * 100)
+    : 0;
 
   return (
-    <Card className="gap-0 overflow-hidden p-0 ring-0">
-      <Link href={`/products/${slug}`} className="block">
-        <CardContent className="p-0">
-          <ProductImage src={displayImage} alt={name} />
-        </CardContent>
-      </Link>
-
-      <div className="flex flex-1 flex-col gap-3 p-4">
-        <Link
-          href={`/products/${slug}`}
-          className="line-clamp-2 font-medium text-foreground text-sm leading-snug hover:underline"
-        >
-          {name}
-        </Link>
-
-        {displayPrice !== null && (
-          <p className="font-semibold text-base text-foreground">
-            {displayPrice}
-          </p>
+    <Link href={`/product/${product.slug}`}>
+      <article
+        className={cn(
+          "group flex min-w-0 flex-col overflow-hidden rounded-2xl border bg-card shadow-sm transition-all duration-200",
+          "hover:-translate-y-0.5 hover:shadow-md",
+          className
         )}
-      </div>
+      >
+        {/* Image */}
+        <div
+          className={cn(
+            "relative aspect-square w-full overflow-hidden bg-muted/30",
+            imageContainerClassName
+          )}
+        >
+          <Image
+            src={product.baseImage}
+            alt={product.name}
+            fill
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+            className={cn(
+              "object-contain transition-transform duration-300",
+              "group-hover:scale-105",
+              imageClassName
+            )}
+          />
+        </div>
 
-      <CardFooter className="px-4 pt-0 pb-4">
-        <AddToCartButton
-          skuId={selectedSku?.id ?? productSKUs[0]?.id ?? ""}
-          disabled={(!selectedSku && productSKUs.length > 0) || isOutOfStock}
-        />
-      </CardFooter>
-    </Card>
+        {/* Content */}
+        <div className={cn("flex flex-col gap-1 p-4", contentClassName)}>
+          <h3
+            className={cn(
+              "truncate font-medium text-foreground text-sm leading-5",
+              nameClassName
+            )}
+            title={product.name}
+          >
+            {product.name}
+          </h3>
+
+          <div className="mt-1 flex items-baseline gap-2">
+            <span
+              className={cn(
+                "font-bold text-lg text-orange-500",
+                priceClassName
+              )}
+            >
+              Rs. {price.toLocaleString()}
+            </span>
+
+            {hasDiscount && (
+              <span className="text-muted-foreground text-xs line-through">
+                Rs. {originalPrice.toLocaleString()}
+              </span>
+            )}
+          </div>
+
+          <span
+            className={cn(
+              "mt-1 font-medium text-xs",
+              hasDiscount ? "text-orange-500" : "text-muted-foreground"
+            )}
+          >
+            {hasDiscount ? `${discountPercentage}% off` : "Best value"}
+          </span>
+          {/** biome-ignore lint/a11y/noNoninteractiveElementInteractions: one timee */}
+          {/** biome-ignore lint/a11y/noStaticElementInteractions: one timee */}
+          {/** biome-ignore lint/a11y/useKeyWithClickEvents: one timee */}
+          <div
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            className="self-end"
+          >
+            <AddToCartButton
+              productName={product.name}
+              productId={product.id}
+            />
+          </div>
+        </div>
+      </article>
+    </Link>
   );
-}
+};

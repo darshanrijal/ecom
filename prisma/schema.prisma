@@ -92,7 +92,7 @@ model Product {
   slug        String  @unique
   description String
   categoryId  String
-  baseImage   String?
+  baseImage   String
   isPublished Boolean @default(false)
 
   createdAt  DateTime  @default(now())
@@ -139,7 +139,9 @@ model ProductSKU {
   sku       String  @unique
   price     Decimal @db.Decimal(10, 2)
   stock     Int     @default(0)
-  imageUrl  String?
+  imageUrl  String
+
+  originalPrice Decimal @db.Decimal(10, 2) // if discounted
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
