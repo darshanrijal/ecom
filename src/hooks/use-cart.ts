@@ -1,4 +1,5 @@
 import { trpc } from "@/__rpc/client";
+import { toast } from "@/components/ui/toast";
 import { authClient } from "@/lib/auth-client";
 import { useCartStore } from "@/stores/cart-store";
 
@@ -42,8 +43,23 @@ export function useCart() {
   });
 
   const { mutate: updateCartQuantity } = trpc.cart.updateQuantity.useMutation({
-    onSuccess: () => {
+    onSettled: () => {
       utils.cart.getCartItems.invalidate();
+    },
+    onMutate: ({ quantity, skuId }) => {
+      utils.cart.getCartItems.cancel();
+      const prevData = utils.cart.getCartItems.getData() ?? [];
+      utils.cart.getCartItems.setData(
+        undefined,
+        prevData.map((item) =>
+          item.skuId === skuId ? { ...item, quantity } : item
+        )
+      );
+      return prevData;
+    },
+    onError: (_, __, prevData) => {
+      toast.add({ type: "error", description: "Failed to update quantity" });
+      utils.cart.getCartItems.setData(undefined, prevData);
     },
   });
 

@@ -12,9 +12,10 @@ import {
 import { useCart } from "@/hooks/use-cart";
 import { authClient } from "@/lib/auth-client";
 import { ShoppingCartIcon } from "lucide-react";
+import { CartItem } from "./cart-item";
 
 export const CartButton = () => {
-  const { items, clearGuestCart } = useCart();
+  const { items: cartItems, clearGuestCart, updateQuantity } = useCart();
   const { data: authData } = authClient.useSession();
   return (
     <Sheet>
@@ -29,9 +30,9 @@ export const CartButton = () => {
             >
               <ShoppingCartIcon />
             </Button>
-            {items.length !== 0 && (
+            {cartItems.length !== 0 && (
               <Badge className="absolute -top-2 -right-4 rounded-full bg-orange-400">
-                {items.length}
+                {cartItems.length}
               </Badge>
             )}
           </div>
@@ -44,15 +45,23 @@ export const CartButton = () => {
             Add, remove or update quantity of your cart items
           </SheetDescription>
         </SheetHeader>
-        <div>
-          {items.map((item) => (
-            <p key={item.id}>{item.skuId}</p>
+        <div className="px-4">
+          {cartItems.map((item) => (
+            <CartItem
+              quantity={item.quantity}
+              skuId={item.skuId}
+              key={item.id}
+              onDecrease={(skuId) =>
+                updateQuantity(skuId, Math.max(1, item.quantity - 1))
+              }
+              onIncrease={(skuId) => updateQuantity(skuId, item.quantity + 1)}
+            />
           ))}
         </div>
-        {!authData?.session && items.length !== 0 && (
+        {!authData?.session && cartItems.length !== 0 && (
           <Button onClick={() => clearGuestCart()}>Clear Cart</Button>
         )}
-        {items.length === 0 && (
+        {cartItems.length === 0 && (
           <p className="max-w-xs pl-10 text-muted-foreground">
             Your cart is empty. Add items to cart to show them here.
           </p>

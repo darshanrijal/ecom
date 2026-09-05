@@ -1,5 +1,6 @@
 import z from "zod";
 import { publicProcedure, router } from "../trpc";
+import { TRPCError } from "@trpc/server";
 
 export const productRouter = router({
   getAllProducts: publicProcedure
@@ -82,5 +83,31 @@ export const productRouter = router({
         options: product.options,
         skus: product.productSKUs,
       };
+    }),
+
+  getProductBySKU: publicProcedure
+    .input(z.object({ skuId: z.cuid2() }))
+    .query(async ({ ctx, input }) => {
+      const productSKU = await ctx.db.productSKU.findUnique({
+        where: {
+          id: input.skuId,
+        },
+        include: {
+          product: true,
+          optionValues: {
+            include: {
+              option: true,
+            },
+          },
+        },
+      });
+
+      if (!productSKU) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "No such sku exists",
+        });
+      }
+      return productSKU;
     }),
 });
