@@ -41,6 +41,12 @@ export function useCart() {
       utils.cart.getCartItems.invalidate();
     },
   });
+  const { mutate: removeAllItemsLoggedIn } =
+    trpc.cart.removeAllItems.useMutation({
+      onSuccess: () => {
+        utils.cart.getCartItems.invalidate();
+      },
+    });
 
   const { mutate: updateCartQuantity } = trpc.cart.updateQuantity.useMutation({
     onSettled: () => {
@@ -101,11 +107,19 @@ export function useCart() {
     return isLoggedIn ? loggedInItems : guestItems;
   }
 
+  function clearCart() {
+    if (isLoggedIn) {
+      removeAllItemsLoggedIn();
+      return;
+    }
+    clearGuestCart();
+  }
+
   return {
     items: getCartItems(),
     addToCart,
     removeItemFromCart,
     updateQuantity,
-    clearGuestCart,
+    clearCart,
   };
 }

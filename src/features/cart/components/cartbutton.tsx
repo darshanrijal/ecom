@@ -10,13 +10,11 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { useCart } from "@/hooks/use-cart";
-import { authClient } from "@/lib/auth-client";
 import { ShoppingCartIcon } from "lucide-react";
 import { CartItem } from "./cart-item";
 
 export const CartButton = () => {
-  const { items: cartItems, clearGuestCart, updateQuantity } = useCart();
-  const { data: authData } = authClient.useSession();
+  const { items: cartItems, clearCart, updateQuantity } = useCart();
   return (
     <Sheet>
       <SheetTrigger
@@ -58,8 +56,8 @@ export const CartButton = () => {
             />
           ))}
         </div>
-        {!authData?.session && cartItems.length !== 0 && (
-          <Button onClick={() => clearGuestCart()}>Clear Cart</Button>
+        {cartItems.length !== 0 && (
+          <Button onClick={() => clearCart()}>Clear Cart</Button>
         )}
         {cartItems.length === 0 && (
           <p className="max-w-xs pl-10 text-muted-foreground">

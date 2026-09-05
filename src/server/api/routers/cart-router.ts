@@ -145,4 +145,27 @@ export const cartRouter = router({
       },
     });
   }),
+  removeAllItems: protectedProcedure.mutation(async ({ ctx }) => {
+    const cart = await ctx.db.cart.findUnique({
+      where: {
+        userId: ctx.user.id,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!cart) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "Cart not found",
+      });
+    }
+
+    await ctx.db.cartItem.deleteMany({
+      where: {
+        cartId: cart.id,
+      },
+    });
+  }),
 });
