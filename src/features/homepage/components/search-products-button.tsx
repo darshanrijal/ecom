@@ -2,14 +2,19 @@
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useHotkey } from "@tanstack/react-hotkeys";
 import { SearchIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
-const THRESHOLD = 15; // Minimum scroll delta in px required to trigger toggle
+const THRESHOLD = 15;
 
 export const SearchProductsButton = () => {
-  // 1. Initialized to true so it shows on load
-  const [show, setShow] = useState(true);
+  const [showSearchButton, setShowSearchButton] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const router = useRouter();
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let lastScrollY = window.scrollY;
@@ -18,46 +23,141 @@ export const SearchProductsButton = () => {
       const currentScrollY = window.scrollY;
       const scrollDiff = currentScrollY - lastScrollY;
 
-      // 2. If scrolled back all the way to the top, force show
       if (currentScrollY <= 0) {
-        setShow(true);
+        setShowSearchButton(true);
         lastScrollY = 0;
         return;
       }
 
-      // Ignore micro-scrolls smaller than the threshold
       if (Math.abs(scrollDiff) < THRESHOLD) {
         return;
       }
 
-      // Hide on scroll down, show on scroll up
       if (scrollDiff > 0) {
-        setShow(false);
+        setShowSearchButton(false);
       } else {
-        setShow(true);
+        setShowSearchButton(true);
       }
 
       lastScrollY = currentScrollY;
     };
 
-    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("scroll", handleScroll, {
+      passive: true,
+    });
+
     return () => {
       window.removeEventListener("scroll", handleScroll);
     };
   }, []);
 
+  const openSearch = () => {
+    setShowSearchButton(true);
+    setIsOpen(true);
+
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
+  };
+
+  const closeSearch = () => {
+    setIsOpen(false);
+    setSearch("");
+  };
+
+  useHotkey("Control+K", (event) => {
+    event.preventDefault();
+    openSearch();
+  });
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: no closeSearch() in deps
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && isOpen) {
+        closeSearch();
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [isOpen]);
+
+  function handleSearch() {
+    if (!search.trim()) {
+      return;
+    }
+    router.push(`/search?input=${encodeURIComponent(search)}`);
+  }
+
   return (
     <div
       className={cn(
-        "fixed right-6 bottom-6 z-50 hidden transform transition-all duration-300 ease-in-out xl:block",
-        show
-          ? "pointer-events-auto translate-y-0 opacity-100"
-          : "pointer-events-none translate-y-4 opacity-0"
+        // Mobile/tablet: part of navbar layout.
+        "relative block shrink-0",
+
+        // Desktop xl+: floating search.
+        "xl:fixed xl:right-6 xl:bottom-6 xl:z-50",
+
+        "transition-all duration-300 ease-in-out",
+
+        // Only hide on scroll for xl+.
+        "xl:pointer-events-auto",
+        "xl:translate-y-0 xl:opacity-100",
+
+        !showSearchButton &&
+          "xl:pointer-events-none xl:translate-y-4 xl:opacity-0"
       )}
     >
-      <Button size="icon-sm" variant="ghost" title="Search Products">
-        <SearchIcon />
-      </Button>
+      <div
+        className={cn(
+          "flex h-9 items-center overflow-hidden rounded-md border bg-background shadow-sm",
+          "transition-[width] duration-300 ease-out",
+
+          isOpen ? "w-[min(58vw,18rem)] sm:w-72" : "w-9"
+        )}
+      >
+        {/* Search button */}
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          title="Search Products"
+          onClick={openSearch}
+          className={cn("shrink-0", isOpen && "pointer-events-none")}
+        >
+          <SearchIcon
+            className={cn(
+              "transition-transform duration-300",
+              isOpen && "scale-90"
+            )}
+          />
+        </Button>
+
+        {/* Search input */}
+        <input
+          ref={inputRef}
+          type="search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              handleSearch();
+            }
+          }}
+          placeholder="Search products..."
+          className={cn(
+            "min-w-0 flex-1 bg-transparent px-2 text-sm outline-none",
+            "transition-[opacity,transform] duration-200",
+
+            isOpen
+              ? "translate-x-0 opacity-100"
+              : "pointer-events-none -translate-x-2 opacity-0"
+          )}
+        />
+      </div>
     </div>
   );
 };

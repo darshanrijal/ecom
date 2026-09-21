@@ -31,21 +31,22 @@ const navbarLinks = [
 export const Navbar = () => {
   return (
     <nav className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-xl">
-      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        {/* for mobile */}
-        <div className="md:hidden">
+      <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-3 px-4 sm:h-20 sm:px-6 lg:px-8">
+        {/* Mobile menu */}
+        <div className="shrink-0 md:hidden">
           <Sheet>
             <SheetTrigger
               render={
                 <Button
                   data-slot="sheet-trigger"
-                  size={"icon-xs"}
-                  variant={"outline"}
+                  size="icon-xs"
+                  variant="outline"
                 >
                   <MenuIcon />
                 </Button>
               }
             />
+
             <SheetContent side="left">
               <SheetHeader>
                 <SheetTitle>Other links</SheetTitle>
@@ -55,7 +56,7 @@ export const Navbar = () => {
                 {navbarLinks.map((link) => (
                   <Button
                     key={link.label}
-                    variant={"link"}
+                    variant="link"
                     nativeButton={false}
                     render={<Link href={link.url}>{link.label}</Link>}
                   />
@@ -68,19 +69,19 @@ export const Navbar = () => {
         {/* Logo */}
         <Link
           href="/"
-          className="flex items-center transition-opacity hover:opacity-80"
+          className="flex min-w-0 shrink items-center transition-opacity hover:opacity-80"
         >
           <Image
             src="/logo.png"
             alt="Gada Electronics"
             width={64}
             height={64}
-            className="object-contain"
+            className="size-14 object-contain sm:size-16"
             priority
           />
         </Link>
 
-        {/* Navigation */}
+        {/* Desktop navigation */}
         <div className="hidden items-center rounded-full border bg-muted/60 p-1 shadow-sm md:flex">
           {navbarLinks.map((link) => (
             <Link
@@ -94,13 +95,16 @@ export const Navbar = () => {
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 shrink-0 items-center gap-2">
           <SearchProductsButton />
-          <div className="rounded-full border bg-background p-1 shadow-sm transition-shadow hover:shadow-md">
+
+          {/* User */}
+          <div className="hidden shrink-0 rounded-full border bg-background p-1 shadow-sm transition-shadow hover:shadow-md lg:block">
             <UserButton />
           </div>
 
-          <div className="rounded-full border bg-background p-1 shadow-sm transition-shadow hover:shadow-md">
+          {/* Cart */}
+          <div className="shrink-0 rounded-full border bg-background p-1 shadow-sm transition-shadow hover:shadow-md">
             <CartButton />
           </div>
         </div>

@@ -1,11 +1,9 @@
-import { Navbar } from "@/features/homepage/components/navbar";
 import { ProductList } from "@/features/products/components/product-list";
 import Image from "next/image";
 
 export default function Home() {
   return (
     <main>
-      <Navbar />
       <div className="relative hidden flex-col items-center justify-center bg-primary/10 p-6 xl:flex">
         <Image
           src={"/jethalal.png"}

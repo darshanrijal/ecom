@@ -59,6 +59,7 @@ export const CartItem = ({
             size={"icon-sm"}
             type="button"
             title="Remove from cart"
+            className="mb-2"
             onClick={() => removeItemFromCart(skuId)}
           >
             <TrashIcon />
