@@ -224,4 +224,69 @@ export const productRouter = router({
         nextCursor,
       };
     }),
+  getProductsByCategorySlug: publicProcedure
+    .input(
+      z.object({
+        limit: z.number().min(1).max(100).default(15),
+        cursor: z.string().nullish(),
+        categorySlug: z.string().nonempty(),
+      })
+    )
+    .query(async ({ input, ctx }) => {
+      const { limit, cursor, categorySlug } = input;
+
+      const products = await ctx.db.product.findMany({
+        take: limit + 1,
+        cursor: cursor ? { id: cursor } : undefined,
+        skip: cursor ? 1 : 0,
+        where: {
+          category: {
+            OR: [
+              {
+                name: {
+                  contains: categorySlug,
+                  mode: "insensitive",
+                },
+              },
+              {
+                slug: {
+                  contains: categorySlug,
+                  mode: "insensitive",
+                },
+              },
+            ],
+          },
+        },
+        orderBy: { id: "asc" },
+        include: {
+          productSKUs: {
+            orderBy: {
+              price: "asc",
+            },
+            take: 1,
+          },
+        },
+      });
+
+      let nextCursor: typeof cursor;
+
+      if (products.length > limit) {
+        const nextItem = products.pop(); // Remove the +1 check item
+        nextCursor = nextItem?.id; // The pop'd item's ID becomes the next cursor start point
+      }
+
+      const serializedProducts = products.map((product) => ({
+        ...product,
+        productSKUs: product.productSKUs.map((sku) => ({
+          ...sku,
+          price: Number(sku.price),
+          originalPrice: sku.originalPrice ? Number(sku.originalPrice) : null,
+        })),
+      }));
+
+      return {
+        products: serializedProducts,
+        nextCursor,
+      };
+    }),
 });

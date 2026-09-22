@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import type React from "react";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -76,7 +77,9 @@ export function AddToCartButton({
     }));
   }
 
-  function handleAddToCart() {
+  function handleAddToCart(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
     // SKU is already selected.
     if (skuId) {
       addToCart({
@@ -247,7 +250,7 @@ export function AddToCartButton({
               )}
 
               <Button
-                className="w-full bg-orange-500 hover:bg-orange-400"
+                className={cn("w-full", className)}
                 disabled={!selectedSku || selectedSku.stock <= 0}
                 onClick={handleVariantAddToCart}
               >

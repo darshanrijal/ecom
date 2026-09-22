@@ -49,7 +49,7 @@ function ProductBreadcrumb({
         <BreadcrumbSeparator>/</BreadcrumbSeparator>
 
         <BreadcrumbItem className="shrink-0">
-          {/* TODO: Make a category page */}
+          {/* TODO: Make a category pagero */}
           <BreadcrumbLink render={<Link href={`/category/${category.slug}`} />}>
             {category.name}
           </BreadcrumbLink>

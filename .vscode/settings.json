@@ -58,5 +58,13 @@
   "tailwindCSS.classFunctions": ["cva"],
   "[prisma]": {
     "editor.defaultFormatter": "Prisma.prisma"
-  }
+  },
+  "tailwindCSS.classAttributes": [
+    "className",
+    "imageClassName",
+    "imageContainerClassName",
+    "contentClassName",
+    "nameClassName",
+    "priceClassName"
+  ]
 }
