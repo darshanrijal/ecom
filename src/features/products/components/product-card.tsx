@@ -57,7 +57,7 @@ export const ProductCard = ({
       {/* Image */}
       <div
         className={cn(
-          "relative aspect-square w-full overflow-hidden bg-gradient-to-b from-muted/70 to-muted/30",
+          "relative aspect-square w-full overflow-hidden bg-linear-to-b from-muted/70 to-muted/30",
           imageContainerClassName
         )}
       >

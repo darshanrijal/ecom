@@ -100,7 +100,7 @@ export function PayClient({ orderId }: { orderId: string }) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-gradient-to-b from-muted/60 to-background">
+    <div className="flex min-h-screen flex-col bg-linear-to-b from-muted/60 to-background">
       <header className="border-b bg-background/70 backdrop-blur">
         <div className="mx-auto flex h-16 w-full max-w-lg items-center justify-between px-4">
           <Link
@@ -125,7 +125,7 @@ export function PayClient({ orderId }: { orderId: string }) {
         </div>
 
         <div className="overflow-hidden rounded-2xl border bg-card shadow-lg">
-          <div className={`bg-gradient-to-r ${brand.header} p-6 text-white`}>
+          <div className={`bg-linear-to-r ${brand.header} p-6 text-white`}>
             <div className="flex items-center justify-between">
               <span className="grid size-10 place-items-center rounded-xl bg-white/20 font-bold text-lg">
                 {brand.letter}

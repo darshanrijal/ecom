@@ -39,7 +39,7 @@ export function PromoBanners() {
       </div>
 
       {/* Offers */}
-      <div className="relative overflow-hidden rounded-3xl border bg-gradient-to-br from-muted/70 to-background p-6 sm:p-8">
+      <div className="relative overflow-hidden rounded-3xl border bg-linear-to-br from-muted/70 to-background p-6 sm:p-8">
         <div className="relative z-10 flex h-full flex-col items-start gap-4">
           <div className="flex size-10 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
             <BadgePercentIcon className="size-5" />
@@ -72,7 +72,7 @@ export function PromoBanners() {
           aria-hidden="true"
           width={220}
           height={220}
-          className="absolute -right-6 -bottom-6 hidden h-[130%] w-auto object-contain object-bottom opacity-90 sm:block md:hidden lg:block"
+          className="absolute -right-6 -bottom-6 hidden h-[80%] w-auto object-contain object-bottom opacity-90 sm:block md:hidden lg:block"
         />
       </div>
     </section>

@@ -12,7 +12,7 @@ interface HeroProps {
 export function Hero({ productCount, categoryCount }: HeroProps) {
   return (
     <section className="mx-auto w-full max-w-7xl px-4 pt-6 sm:px-6 sm:pt-10 lg:px-8">
-      <div className="relative overflow-hidden rounded-3xl border bg-gradient-to-br from-muted/70 via-background to-muted/40">
+      <div className="relative overflow-hidden rounded-3xl border bg-linear-to-br from-muted/70 via-background to-muted/40">
         <div className="relative z-10 grid items-center gap-8 p-6 sm:p-10 md:grid-cols-2 md:p-14">
           {/* Copy */}
           <div className="flex flex-col items-start gap-5">
@@ -67,7 +67,7 @@ export function Hero({ productCount, categoryCount }: HeroProps) {
           </div>
 
           {/* Character art */}
-          <div className="relative hidden aspect-[4/3] md:block">
+          <div className="relative hidden aspect-4/3 md:block">
             <div
               aria-hidden="true"
               className="absolute inset-x-10 top-4 bottom-0 rounded-full bg-primary/10 blur-3xl"

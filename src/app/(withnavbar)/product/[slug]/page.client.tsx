@@ -114,7 +114,7 @@ function ProductGallery({
 
   return (
     <section className="w-full">
-      <div className="relative overflow-hidden rounded-2xl border bg-gradient-to-b from-muted/60 to-muted/20 lg:sticky lg:top-24">
+      <div className="relative overflow-hidden rounded-2xl border bg-linear-to-b from-muted/60 to-muted/20 lg:sticky lg:top-24">
         {!!showDiscount && (
           <span className="absolute top-4 left-4 z-10 rounded-md bg-destructive px-2.5 py-1 font-semibold text-white text-xs">
             {discountPercentage}% OFF
