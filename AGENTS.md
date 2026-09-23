@@ -32,7 +32,10 @@ npm run format -> npm run lint -> npm run typecheck -> npm run build
 - PostgreSQL on Neon, accessed via Prisma 7 with `@prisma/adapter-pg` driver adapter.
 - Schema: `prisma/schema.prisma`
 - After schema changes: `npm run db:generate && npm run db:migrate`
-- Seed data: hit `GET /api/seed` (creates 12 categories + 40+ products).
+- Seed data: `bun seed.ts` (creates 10 categories + 61 products). Catalog lives in
+  `src/lib/catalog.ts`; product images are real photos in `public/products/`
+  (manifest: `src/lib/product-images.json`). Re-fetch images with
+  `bun scripts/fetch-product-images.ts` (sources: Wikimedia Commons + Openverse).
 - Prisma client is generated into `src/generated/prisma` (gitignored).
 - Prisma Studio: `npm run db:studio`
 
@@ -80,3 +83,4 @@ No `.env.example` exists. Copy values from `.env` (if present) or set up fresh.
 - `src/components/ui/*.tsx` are shadcn-generated; Biome linting is disabled for them. Don't manually edit unless regenerating.
 - Path alias `@/*` maps to `./src/*`.
 - Use bun for scripts and pm instead of npm
+    

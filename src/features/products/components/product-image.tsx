@@ -8,9 +8,15 @@ interface ProductImageProps {
   src?: string | null;
   alt: string;
   className?: string;
+  imageClassName?: string;
 }
 
-export function ProductImage({ src, alt, className }: ProductImageProps) {
+export function ProductImage({
+  src,
+  alt,
+  className,
+  imageClassName,
+}: ProductImageProps) {
   if (!src) {
     return (
       <div
@@ -30,7 +36,7 @@ export function ProductImage({ src, alt, className }: ProductImageProps) {
         src={src}
         alt={alt}
         fill
-        className="rounded-lg object-cover"
+        className={cn("rounded-lg object-cover", imageClassName)}
         sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
       />
     </div>

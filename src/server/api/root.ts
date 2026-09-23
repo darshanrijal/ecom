@@ -1,4 +1,5 @@
 import z from "zod";
+import { TRPCError } from "@trpc/server";
 import {
   createCallerFactory,
   protectedProcedure,
@@ -6,7 +7,9 @@ import {
   router,
 } from "./trpc";
 import { cartRouter } from "./routers/cart-router";
+import { orderRouter } from "./routers/order-router";
 import { productRouter } from "./routers/product-router";
+import { reviewRouter } from "./routers/review-router";
 
 export const appRouter = router({
   health: publicProcedure.query(() => ({
@@ -30,15 +33,24 @@ export const appRouter = router({
   deleteSession: protectedProcedure
     .input(z.object({ sessionId: z.string().nonempty() }))
     .mutation(async ({ ctx, input }) => {
-      await ctx.db.session.delete({
+      const { count } = await ctx.db.session.deleteMany({
         where: {
           id: input.sessionId,
           userId: ctx.user.id,
         },
       });
+
+      if (count === 0) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Session not found",
+        });
+      }
     }),
   cart: cartRouter,
+  orders: orderRouter,
   products: productRouter,
+  reviews: reviewRouter,
 });
 
 export type AppRouter = typeof appRouter;

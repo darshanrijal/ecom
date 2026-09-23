@@ -2,6 +2,45 @@ import z from "zod";
 import { publicProcedure, router } from "../trpc";
 import { TRPCError } from "@trpc/server";
 
+/** Prisma Decimal -> number so responses survive JSON serialization. */
+function serializeSku<T extends { price: unknown; originalPrice: unknown }>(
+  sku: T
+) {
+  return {
+    ...sku,
+    price: Number(sku.price),
+    originalPrice: sku.originalPrice ? Number(sku.originalPrice) : null,
+  };
+}
+
+/** Prisma Decimal -> number so responses survive JSON serialization. */
+// biome-ignore lint/suspicious/noExplicitAny: shared across all product queries
+function serializeProducts<T extends { productSKUs: any[] }>(products: T[]) {
+  return products.map((product) => ({
+    ...product,
+    productSKUs: product.productSKUs.map((sku) => serializeSku(sku)),
+  }));
+}
+
+/** Card-friendly discount % between SKU price and originalPrice. */
+function discountPercent(sku?: {
+  price: number;
+  originalPrice: number | null;
+}) {
+  if (!sku?.originalPrice || sku.originalPrice <= sku.price) {
+    return 0;
+  }
+  return Math.round(
+    ((sku.originalPrice - sku.price) / sku.originalPrice) * 100
+  );
+}
+
+/** The lowest-priced SKU is the one ProductCard displays. */
+const lowestPricedSku = {
+  orderBy: { price: "asc" as const },
+  take: 1,
+};
+
 export const productRouter = router({
   getAllProducts: publicProcedure
     .input(
@@ -19,12 +58,7 @@ export const productRouter = router({
         skip: cursor ? 1 : 0,
         orderBy: { id: "asc" },
         include: {
-          productSKUs: {
-            orderBy: {
-              price: "asc",
-            },
-            take: 1,
-          },
+          productSKUs: lowestPricedSku,
         },
       });
 
@@ -35,17 +69,8 @@ export const productRouter = router({
         nextCursor = nextItem?.id; // The pop'd item's ID becomes the next cursor start point
       }
 
-      const serializedProducts = products.map((product) => ({
-        ...product,
-        productSKUs: product.productSKUs.map((sku) => ({
-          ...sku,
-          price: Number(sku.price),
-          originalPrice: sku.originalPrice ? Number(sku.originalPrice) : null,
-        })),
-      }));
-
       return {
-        products: serializedProducts,
+        products: serializeProducts(products),
         nextCursor,
       };
     }),
@@ -90,7 +115,7 @@ export const productRouter = router({
 
       return {
         options: product.options,
-        skus: product.productSKUs,
+        skus: product.productSKUs.map((sku) => serializeSku(sku)),
       };
     }),
 
@@ -117,7 +142,21 @@ export const productRouter = router({
           message: "No such sku exists",
         });
       }
-      return productSKU;
+      return serializeSku(productSKU);
+    }),
+
+  getSKUsByIds: publicProcedure
+    .input(z.object({ skuIds: z.array(z.cuid2()).min(1).max(100) }))
+    .query(async ({ ctx, input }) => {
+      const skus = await ctx.db.productSKU.findMany({
+        where: { id: { in: input.skuIds } },
+        include: {
+          product: { select: { id: true, name: true, slug: true } },
+          optionValues: { include: { option: true } },
+        },
+      });
+
+      return skus.map((sku) => serializeSku(sku));
     }),
 
   getProductBySlug: publicProcedure
@@ -158,6 +197,40 @@ export const productRouter = router({
         })),
       };
     }),
+
+  /** Same-category siblings for the "You may also like" strip. */
+  getRelatedProducts: publicProcedure
+    .input(
+      z.object({
+        slug: z.string(),
+        limit: z.number().min(1).max(12).default(4),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const product = await ctx.db.product.findUnique({
+        where: { slug: input.slug },
+        select: { id: true, categoryId: true },
+      });
+
+      if (!product) {
+        return { products: [] };
+      }
+
+      const products = await ctx.db.product.findMany({
+        where: {
+          categoryId: product.categoryId,
+          id: { not: product.id },
+          isPublished: true,
+          archivedAt: null,
+        },
+        orderBy: { id: "asc" },
+        take: input.limit,
+        include: { productSKUs: lowestPricedSku },
+      });
+
+      return { products: serializeProducts(products) };
+    }),
+
   searchProduct: publicProcedure
     .input(
       z.object({
@@ -193,12 +266,7 @@ export const productRouter = router({
         skip: cursor ? 1 : 0,
         orderBy: { id: "asc" },
         include: {
-          productSKUs: {
-            orderBy: {
-              price: "asc",
-            },
-            take: 1,
-          },
+          productSKUs: lowestPricedSku,
         },
       });
 
@@ -209,18 +277,8 @@ export const productRouter = router({
         nextCursor = nextItem?.id;
       }
 
-      // Convert Prisma Decimals to Numbers or Strings for JSON Serialization
-      const serializedProducts = products.map((product) => ({
-        ...product,
-        productSKUs: product.productSKUs.map((sku) => ({
-          ...sku,
-          price: Number(sku.price),
-          originalPrice: sku.originalPrice ? Number(sku.originalPrice) : null,
-        })),
-      }));
-
       return {
-        products: serializedProducts,
+        products: serializeProducts(products),
         nextCursor,
       };
     }),
@@ -259,12 +317,7 @@ export const productRouter = router({
         },
         orderBy: { id: "asc" },
         include: {
-          productSKUs: {
-            orderBy: {
-              price: "asc",
-            },
-            take: 1,
-          },
+          productSKUs: lowestPricedSku,
         },
       });
 
@@ -275,18 +328,90 @@ export const productRouter = router({
         nextCursor = nextItem?.id; // The pop'd item's ID becomes the next cursor start point
       }
 
-      const serializedProducts = products.map((product) => ({
-        ...product,
-        productSKUs: product.productSKUs.map((sku) => ({
-          ...sku,
-          price: Number(sku.price),
-          originalPrice: sku.originalPrice ? Number(sku.originalPrice) : null,
-        })),
-      }));
-
       return {
-        products: serializedProducts,
+        products: serializeProducts(products),
         nextCursor,
       };
     }),
+
+  getHomeData: publicProcedure.query(async ({ ctx }) => {
+    const products = await ctx.db.product.findMany({
+      where: { isPublished: true, archivedAt: null },
+      orderBy: { id: "desc" },
+      include: {
+        productSKUs: lowestPricedSku,
+        category: { select: { name: true, slug: true } },
+      },
+    });
+    const serialized = serializeProducts(products);
+
+    // Categories with a sample product image + product count.
+    const categoryMap = new Map<
+      string,
+      {
+        id: string;
+        productCount: number;
+        sampleImage: string | null;
+      }
+    >();
+    for (const product of serialized) {
+      const existing = categoryMap.get(product.categoryId);
+      if (existing) {
+        existing.productCount += 1;
+        continue;
+      }
+      categoryMap.set(product.categoryId, {
+        id: product.categoryId,
+        productCount: 1,
+        sampleImage: product.baseImage,
+      });
+    }
+
+    // Full category list (even categories whose products are all hidden).
+    const categories = await ctx.db.category.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, slug: true, description: true },
+    });
+
+    const categoriesWithMeta = categories.map((category) => {
+      const meta = categoryMap.get(category.id);
+      return {
+        ...category,
+        productCount: meta?.productCount ?? 0,
+        sampleImage: meta?.sampleImage ?? null,
+      };
+    });
+
+    // Top deals: biggest discount on the displayed (lowest) SKU first.
+    type HomeProduct = (typeof serialized)[number];
+    const deals: Array<HomeProduct & { discount: number }> = [];
+    for (const product of serialized) {
+      const discount = discountPercent(product.productSKUs[0]);
+      if (discount > 0) {
+        deals.push({ ...product, discount });
+      }
+    }
+    deals.sort((a, b) => b.discount - a.discount || a.id.localeCompare(b.id));
+
+    // Popular picks: latest product from each category for a varied grid.
+    const seenCategories = new Set<string>();
+    const popular: HomeProduct[] = [];
+    for (const product of serialized) {
+      if (seenCategories.has(product.categoryId)) {
+        continue;
+      }
+      seenCategories.add(product.categoryId);
+      popular.push(product);
+    }
+
+    return {
+      categories: categoriesWithMeta,
+      deals: deals.slice(0, 8),
+      popular: popular.slice(0, 8),
+      stats: {
+        categoryCount: categories.length,
+        productCount: products.length,
+      },
+    };
+  }),
 });

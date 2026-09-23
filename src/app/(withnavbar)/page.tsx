@@ -1,36 +1,41 @@
-import { ProductList } from "@/features/products/components/product-list";
-import Image from "next/image";
+import { api } from "@/__rpc/server";
+import { CategoryGrid } from "@/features/homepage/components/category-grid";
+import { Hero } from "@/features/homepage/components/hero";
+import { ProductSection } from "@/features/homepage/components/product-section";
+import { PromoBanners } from "@/features/homepage/components/promo-banners";
+import { UspStrip } from "@/features/homepage/components/usp-strip";
 
-export default function Home() {
+export default async function Home() {
+  const { categories, deals, popular, stats } =
+    await api.products.getHomeData();
+
   return (
-    <main>
-      <div className="relative hidden flex-col items-center justify-center bg-primary/10 p-6 xl:flex">
-        <Image
-          src={"/jethalal.png"}
-          alt="jethalal"
-          width={200}
-          height={200}
-          className="absolute right-0 bottom-0"
-        />
-        <Image
-          src={"/nattukaka-bagha.png"}
-          alt="nattukaka"
-          width={190}
-          height={190}
-          className="mask-r-from-90% mask-b-from-80% absolute bottom-0 left-0"
-        />
+    <main className="flex flex-col gap-10 pb-6 sm:gap-14">
+      <Hero
+        productCount={stats.productCount}
+        categoryCount={stats.categoryCount}
+      />
 
-        <p className="uppercase">Our complete Range</p>
-        <p className="font-semibold text-3xl">All Products</p>
-        <p className="mt-6 text-muted-foreground">
-          Mobile phones, Electronic items, Washing machine, Rice cooker, Oven,
-          and many more with best after-sales service.
-        </p>
-        <p className="text-muted-foreground">
-          Offial dealer for Red Cerry 8400, RAMSUNG, MyPhone, SingSong, TonyTV
-        </p>
-      </div>
-      <ProductList />
+      <UspStrip />
+
+      <CategoryGrid categories={categories} />
+
+      <ProductSection
+        id="deals"
+        eyebrow="Limited time"
+        title="Top deals"
+        href="/products"
+        products={deals}
+      />
+
+      <PromoBanners />
+
+      <ProductSection
+        eyebrow="Handpicked"
+        title="Popular picks"
+        href="/products"
+        products={popular}
+      />
     </main>
   );
 }

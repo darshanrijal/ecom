@@ -1,0 +1,246 @@
+{
+  "iphone-15": {
+    "path": "/products/iphone-15.jpg",
+    "title": "Back of iPhone 15.jpg"
+  },
+  "iphone-15-pro": {
+    "path": "/products/iphone-15-pro.jpg",
+    "title": "Front of iPhone 15 Pro Max.jpg"
+  },
+  "samsung-galaxy-s24": {
+    "path": "/products/samsung-galaxy-s24.png",
+    "title": "Samsung Galaxy S24 (webtekno) 008.png"
+  },
+  "samsung-galaxy-a54": {
+    "path": "/products/samsung-galaxy-a54.jpg",
+    "title": "Back of the Samsung Galaxy A54 5G.jpg"
+  },
+  "xiaomi-redmi-note-13": {
+    "path": "/products/xiaomi-redmi-note-13.jpg",
+    "title": "Xiaomi Redmi Note 4 Front.jpg"
+  },
+  "google-pixel-8": {
+    "path": "/products/google-pixel-8.jpg",
+    "title": "Google Pixel 8, shown in Shibuya Stream.jpg"
+  },
+  "samsung-55-inch-4k-qled-smart-tv": {
+    "path": "/products/samsung-55-inch-4k-qled-smart-tv.jpg",
+    "title": "A flat-screen television.jpg"
+  },
+  "tcl-43-inch-smart-tv": {
+    "path": "/products/tcl-43-inch-smart-tv.jpg",
+    "title": "Techwood flat screen television from 2010.jpg"
+  },
+  "mi-55-inch-4k-tv": {
+    "path": "/products/mi-55-inch-4k-tv.jpg",
+    "title": "Flat Screen TV (279407707).jpg"
+  },
+  "lg-260l-double-door-refrigerator": {
+    "path": "/products/lg-260l-double-door-refrigerator.jpg",
+    "title": "LG refrigerator.jpg"
+  },
+  "samsung-340l-frost-free-refrigerator": {
+    "path": "/products/samsung-340l-frost-free-refrigerator.jpg",
+    "title": "Samsung smart refrigerator - The Talking Fridge.jpg"
+  },
+  "whirlpool-190l-single-door-refrigerator": {
+    "path": "/products/whirlpool-190l-single-door-refrigerator.jpg",
+    "title": "Whirlpool Stainless Steel Refrigerator - Kitchen Appliances (53075130097).jpg"
+  },
+  "bosch-300l-french-door-refrigerator": {
+    "path": "/products/bosch-300l-french-door-refrigerator.jpg",
+    "title": "Bosch electronic no front refrigerator, Oude Pekela (2018) 02.jpg"
+  },
+  "lg-7kg-front-load-washing-machine": {
+    "path": "/products/lg-7kg-front-load-washing-machine.jpg",
+    "title": "LG washing machines.jpg"
+  },
+  "whirlpool-7-5kg-top-load-washing-machine": {
+    "path": "/products/whirlpool-7-5kg-top-load-washing-machine.jpg",
+    "title": "Washing machine Whirlpool (1).jpg"
+  },
+  "lg-28l-convection-microwave-oven": {
+    "path": "/products/lg-28l-convection-microwave-oven.jpg",
+    "title": "LG Microwave oven.jpg"
+  },
+  "bajaj-majesty-oven-toaster-griller": {
+    "path": "/products/bajaj-majesty-oven-toaster-griller.jpg",
+    "title": "Microwave oven flashon.jpg"
+  },
+  "panasonic-27l-convection-microwave": {
+    "path": "/products/panasonic-27l-convection-microwave.jpg",
+    "title": "Black Panasonic Microwave.jpg"
+  },
+  "bajaj-rex-mixer-grinder": {
+    "path": "/products/bajaj-rex-mixer-grinder.jpg",
+    "title": "A table-top mixer-grinder or mixie.jpg"
+  },
+  "macbook-air-m2": {
+    "path": "/products/macbook-air-m2.jpg",
+    "title": "M2 Macbook Air Starlight model.jpg"
+  },
+  "dell-xps-13": {
+    "path": "/products/dell-xps-13.jpg",
+    "title": "Dell XPS 13 9350 and 9300.jpg"
+  },
+  "hp-pavilion-15": {
+    "path": "/products/hp-pavilion-15.jpg",
+    "title": "HP Laptop 15-da1xxx.jpg"
+  },
+  "lenovo-thinkpad-e14": {
+    "path": "/products/lenovo-thinkpad-e14.jpg",
+    "title": "Lenovo ThinkPad E14 G7 14 WUXGA.jpg"
+  },
+  "acer-aspire-7": {
+    "path": "/products/acer-aspire-7.jpg",
+    "title": "Notebook Acer Aspire 5710ZG 03.jpg"
+  },
+  "msi-modern-14": {
+    "path": "/products/msi-modern-14.jpg",
+    "title": "MSI Gaming Laptop on wood floor.jpg"
+  },
+  "voltas-1-ton-window-ac": {
+    "path": "/products/voltas-1-ton-window-ac.jpg",
+    "title": "Air conditioner 14.jpg"
+  },
+  "daikin-1-5-ton-inverter-ac": {
+    "path": "/products/daikin-1-5-ton-inverter-ac.jpg",
+    "title": "DAIKIN AIR CONDITIONER INDOOR UNIT.jpg"
+  },
+  "sony-wh-1000xm5": {
+    "path": "/products/sony-wh-1000xm5.jpg",
+    "title": "Sony WH-CH510 Bluetooth Over-Ear Headphone.jpg"
+  },
+  "jbl-tune-760nc": {
+    "path": "/products/jbl-tune-760nc.jpg",
+    "title": "JBL LIVE 650 BTNC (Over-Ear Noise Cancelling Headphone). (51127342181).jpg"
+  },
+  "apple-airpods-pro": {
+    "path": "/products/apple-airpods-pro.jpg",
+    "title": "Apple airpods pro case.jpg"
+  },
+  "samsung-galaxy-buds2": {
+    "path": "/products/samsung-galaxy-buds2.jpg",
+    "title": "Samsung Galaxy Buds2.jpg"
+  },
+  "sennheiser-hd-450bt": {
+    "path": "/products/sennheiser-hd-450bt.jpg",
+    "title": "Sennheiser RS 175 wireless headphone + station 2,44 ghz.jpg"
+  },
+  "jbl-flip-6": {
+    "path": "/products/jbl-flip-6.jpg",
+    "title": "JBL Flip 3 bluetooth speaker (DSCF2653).jpg"
+  },
+  "sony-srs-xb13": {
+    "path": "/products/sony-srs-xb13.jpg",
+    "title": "Sony SRS-X5 20140303.jpg"
+  },
+  "amazon-echo-dot": {
+    "path": "/products/amazon-echo-dot.jpg",
+    "title": "Amazon Echo Dot (RS03QR)-0479.jpg"
+  },
+  "oneplus-12": {
+    "path": "/products/oneplus-12.jpg",
+    "title": "OnePlus 6 Front1.jpg"
+  },
+  "sony-50-inch-4k-smart-tv": {
+    "path": "/products/sony-50-inch-4k-smart-tv.jpg",
+    "title": "Mirai LCD TV.JPG"
+  },
+  "godrej-236l-double-door-refrigerator": {
+    "path": "/products/godrej-236l-double-door-refrigerator.jpg",
+    "title": "US Domestic Refrigerator - Frigidaire.jpg"
+  },
+  "samsung-23l-solo-microwave-oven": {
+    "path": "/products/samsung-23l-solo-microwave-oven.jpg",
+    "title": "Refrigerator and microwave.jpg"
+  },
+  "morphy-richards-40l-otg": {
+    "path": "/products/morphy-richards-40l-otg.jpg",
+    "title": "Microwave Oven.jpg"
+  },
+  "asus-vivobook-15": {
+    "path": "/products/asus-vivobook-15.jpg",
+    "title": "Laptop, av märket Asus.jpg"
+  },
+  "lg-1-5-ton-split-ac": {
+    "path": "/products/lg-1-5-ton-split-ac.jpg",
+    "title": "Panasonic AIR CONDITIONER INDOOR UNIT CS-C10KJ2.jpg"
+  },
+  "samsung-2-ton-split-ac": {
+    "path": "/products/samsung-2-ton-split-ac.jpg",
+    "title": "Panasonic AIR CONDITIONER INDOOR UNIT CS-C10KJ2 (2).jpg"
+  },
+  "blue-star-1-5-ton-ac": {
+    "path": "/products/blue-star-1-5-ton-ac.jpg",
+    "title": "DAIKIN AIR CONDITIONER INDOOR UNIT (2).jpg"
+  },
+  "hitachi-1-ton-split-ac": {
+    "path": "/products/hitachi-1-ton-split-ac.jpg",
+    "title": "HITACHI AIR CONDITIONER INDOOR UNIT.jpg"
+  },
+  "marshall-emberton": {
+    "path": "/products/marshall-emberton.jpg",
+    "title": "Attractive young man holding a Marshall bluetooth speaker in a cottage.jpg"
+  },
+  "samsung-8kg-front-load-washing-machine": {
+    "path": "/products/samsung-8kg-front-load-washing-machine.jpg",
+    "title": "SAMSUNG WASHING MACHINE.jpg"
+  },
+  "ifb-20l-grill-microwave-oven": {
+    "path": "/products/ifb-20l-grill-microwave-oven.jpg",
+    "title": "TOSHIBA Microwave Oven ER-J3 .jpg"
+  },
+  "boat-rockerz-450": {
+    "path": "/products/boat-rockerz-450.jpg",
+    "title": "Macro headphones laptop (Unsplash).jpg"
+  },
+  "boat-stone-1200": {
+    "path": "/products/boat-stone-1200.jpg",
+    "title": "Bluetooth speaker JBL Xtreme from side showing one of the bass speakers.jpg"
+  },
+  "lg-65-inch-oled-smart-tv": {
+    "path": "/products/lg-65-inch-oled-smart-tv.jpg",
+    "title": "LG Smart TV web browser.jpg"
+  },
+  "panasonic-32-inch-hd-tv": {
+    "path": "/products/panasonic-32-inch-hd-tv.jpg",
+    "title": "OnePlus TV U1S.jpg"
+  },
+  "haier-450l-side-by-side-refrigerator": {
+    "path": "/products/haier-450l-side-by-side-refrigerator.jpg",
+    "title": "Samsung fridge ice build up.jpg"
+  },
+  "ifb-6-5kg-fully-automatic-washing-machine": {
+    "path": "/products/ifb-6-5kg-fully-automatic-washing-machine.jpg",
+    "title": "Panasonic WASHING MACHINE XQB70-H710U.jpg"
+  },
+  "bosch-8kg-front-load-washing-machine": {
+    "path": "/products/bosch-8kg-front-load-washing-machine.png",
+    "title": "Washing machine LG.png"
+  },
+  "haier-6kg-semi-automatic-washing-machine": {
+    "path": "/products/haier-6kg-semi-automatic-washing-machine.png",
+    "title": "Washing machine new.png"
+  },
+  "preethi-zodiac-mixer-grinder": {
+    "path": "/products/preethi-zodiac-mixer-grinder.jpg",
+    "title": "Preethi Zodiac Mixer Grinder"
+  },
+  "philips-hl7756-mixer-grinder": {
+    "path": "/products/philips-hl7756-mixer-grinder.jpg",
+    "title": "commercial mixer grinder - Credit to https://myfriendscoffee.com/"
+  },
+  "butterfly-matchless-mixer-grinder": {
+    "path": "/products/butterfly-matchless-mixer-grinder.jpg",
+    "title": "avon mixer grinder"
+  },
+  "sujata-dynamix-mixer-grinder": {
+    "path": "/products/sujata-dynamix-mixer-grinder.jpg",
+    "title": "A table-top mixer-grinder or mixie.jpg"
+  },
+  "maharaja-whiteline-mixer-grinder": {
+    "path": "/products/maharaja-whiteline-mixer-grinder.jpg",
+    "title": "A table-top mixer-grinder or mixie.jpg"
+  }
+}

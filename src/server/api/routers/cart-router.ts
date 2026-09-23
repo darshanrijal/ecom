@@ -42,6 +42,28 @@ export const cartRouter = router({
         });
       }
 
+      const sku = await ctx.db.productSKU.findUnique({
+        where: { id: input.skuId },
+        select: { stock: true },
+      });
+
+      if (!sku) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "This item is no longer available",
+        });
+      }
+
+      if (sku.stock < input.quantity) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            sku.stock === 0
+              ? "This item is out of stock"
+              : `Only ${sku.stock} left in stock`,
+        });
+      }
+
       await ctx.db.cartItem.upsert({
         where: {
           cartId_skuId: {
@@ -87,12 +109,10 @@ export const cartRouter = router({
         });
       }
 
-      await ctx.db.cartItem.delete({
+      await ctx.db.cartItem.deleteMany({
         where: {
-          cartId_skuId: {
-            cartId: cart.id,
-            skuId: input.skuId,
-          },
+          cartId: cart.id,
+          skuId: input.skuId,
         },
       });
     }),
@@ -121,17 +141,37 @@ export const cartRouter = router({
         });
       }
 
-      await ctx.db.cartItem.update({
+      const sku = await ctx.db.productSKU.findUnique({
+        where: { id: input.skuId },
+        select: { stock: true },
+      });
+
+      if (sku && input.quantity > sku.stock) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            sku.stock === 0
+              ? "This item is out of stock"
+              : `Only ${sku.stock} left in stock`,
+        });
+      }
+
+      const { count } = await ctx.db.cartItem.updateMany({
         where: {
-          cartId_skuId: {
-            cartId: cart.id,
-            skuId: input.skuId,
-          },
+          cartId: cart.id,
+          skuId: input.skuId,
         },
         data: {
           quantity: input.quantity,
         },
       });
+
+      if (count === 0) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Item not found in your cart",
+        });
+      }
     }),
 
   createCart: protectedProcedure.mutation(async ({ ctx }) => {

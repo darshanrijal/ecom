@@ -90,6 +90,7 @@ export const SearchProductsButton = () => {
       return;
     }
     router.push(`/search?input=${encodeURIComponent(search)}`);
+    closeSearch();
   }
 
   return (

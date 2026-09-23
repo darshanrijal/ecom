@@ -34,17 +34,26 @@ export function useCart() {
     onSuccess: () => {
       utils.cart.getCartItems.invalidate();
     },
+    onError: (error) => {
+      toast.add({ type: "error", description: error.message });
+    },
   });
 
   const { mutate: removeItemLoggedIn } = trpc.cart.removeItem.useMutation({
     onSuccess: () => {
       utils.cart.getCartItems.invalidate();
     },
+    onError: (error) => {
+      toast.add({ type: "error", description: error.message });
+    },
   });
   const { mutate: removeAllItemsLoggedIn } =
     trpc.cart.removeAllItems.useMutation({
       onSuccess: () => {
         utils.cart.getCartItems.invalidate();
+      },
+      onError: (error) => {
+        toast.add({ type: "error", description: error.message });
       },
     });
 
@@ -63,8 +72,8 @@ export function useCart() {
       );
       return prevData;
     },
-    onError: (_, __, prevData) => {
-      toast.add({ type: "error", description: "Failed to update quantity" });
+    onError: (error, _, prevData) => {
+      toast.add({ type: "error", description: error.message });
       utils.cart.getCartItems.setData(undefined, prevData);
     },
   });

@@ -1,6 +1,7 @@
 "use client";
 
-import { trpc } from "@/__rpc/client";
+import { type RouterOutputs, trpc } from "@/__rpc/client";
+import { Badge } from "@/components/ui/badge";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -11,10 +12,24 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { AddToCartButton } from "@/features/products/components/add-to-cart-btn";
+import { ProductCard } from "@/features/products/components/product-card";
 import { ProductImage } from "@/features/products/components/product-image";
-import type { Category } from "@/generated/prisma/client";
+import {
+  ProductRatingSummary,
+  ReviewsSection,
+} from "@/features/products/components/reviews-section";
+import { StockBadge } from "@/features/products/components/stock-badge";
+import { VariantChips } from "@/features/products/components/variant-chips";
 import { cn } from "@/lib/utils";
-import { PackageXIcon } from "lucide-react";
+import {
+  BanknoteIcon,
+  MinusIcon,
+  PackageXIcon,
+  PlusIcon,
+  RotateCcwIcon,
+  ShieldCheckIcon,
+  TruckIcon,
+} from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
@@ -37,7 +52,7 @@ function ProductBreadcrumb({
 }: {
   productName: string;
   className?: string;
-  category: Category;
+  category: { name: string; slug: string };
 }) {
   return (
     <Breadcrumb className={className}>
@@ -49,7 +64,6 @@ function ProductBreadcrumb({
         <BreadcrumbSeparator>/</BreadcrumbSeparator>
 
         <BreadcrumbItem className="shrink-0">
-          {/* TODO: Make a category pagero */}
           <BreadcrumbLink render={<Link href={`/category/${category.slug}`} />}>
             {category.name}
           </BreadcrumbLink>
@@ -65,31 +79,119 @@ function ProductBreadcrumb({
   );
 }
 
+const TRUST_ITEMS = [
+  { icon: TruckIcon, label: "Free delivery" },
+  { icon: ShieldCheckIcon, label: "1-year warranty" },
+  { icon: RotateCcwIcon, label: "7-day returns" },
+  { icon: BanknoteIcon, label: "Cash on delivery" },
+] as const;
+
+type PDPProduct = NonNullable<RouterOutputs["products"]["getProductBySlug"]>;
+type PDPSku = PDPProduct["productSKUs"][number];
+
+function ProductGallery({
+  product,
+  selectedSku,
+  discountPercentage,
+  showDiscount,
+  onSelectValues,
+}: {
+  product: PDPProduct;
+  selectedSku?: PDPSku;
+  discountPercentage: number;
+  showDiscount: boolean;
+  onSelectValues: (values: Record<string, string>) => void;
+}) {
+  const activeImageUrl = selectedSku?.imageUrl ?? product.baseImage;
+
+  const gallerySkus = [
+    ...new Map(
+      product.productSKUs
+        .filter((sku) => !!sku.imageUrl)
+        .map((sku) => [sku.imageUrl, sku] as const)
+    ).values(),
+  ];
+
+  return (
+    <section className="w-full">
+      <div className="relative overflow-hidden rounded-2xl border bg-gradient-to-b from-muted/60 to-muted/20 lg:sticky lg:top-24">
+        {!!showDiscount && (
+          <span className="absolute top-4 left-4 z-10 rounded-md bg-destructive px-2.5 py-1 font-semibold text-white text-xs">
+            {discountPercentage}% OFF
+          </span>
+        )}
+
+        <div className="aspect-square p-6 sm:p-10">
+          <ProductImage
+            alt={`Image of ${product.name}`}
+            src={activeImageUrl}
+            className="h-full w-full"
+            imageClassName="rounded-none object-contain"
+          />
+        </div>
+
+        {gallerySkus.length > 1 && (
+          <div className="flex gap-2 overflow-x-auto border-t bg-background/60 p-3">
+            {gallerySkus.map((sku) => {
+              const isActive = sku.imageUrl === activeImageUrl;
+
+              return (
+                <button
+                  key={sku.id}
+                  type="button"
+                  aria-label={`View ${product.name} variant`}
+                  aria-pressed={isActive}
+                  onClick={() =>
+                    onSelectValues(
+                      Object.fromEntries(
+                        sku.optionValues.map((ov) => [ov.optionId, ov.id])
+                      )
+                    )
+                  }
+                  className={cn(
+                    "size-16 shrink-0 overflow-hidden rounded-lg border bg-muted/40 p-1 transition-all",
+                    isActive
+                      ? "border-primary ring-1 ring-primary"
+                      : "hover:border-foreground/40"
+                  )}
+                >
+                  <ProductImage
+                    alt={product.name}
+                    src={sku.imageUrl}
+                    className="h-full w-full"
+                    imageClassName="rounded-none object-contain"
+                  />
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 export const ProductClientPage = ({ slug }: ProductClientPageProps) => {
   const product = useSuspenseProduct(slug);
 
   const [selectedValues, setSelectedValues] = useState<Record<string, string>>(
     {}
   );
+  const [quantity, setQuantity] = useState(1);
 
-  const { data: productVariants } = trpc.products.getProductVariants.useQuery(
-    {
-      productId: product?.id ?? "",
-    },
-    {
-      enabled: !!product?.id,
-    }
-  );
-
-  const options = productVariants?.options ?? [];
-  const skus = productVariants?.skus ?? [];
+  const { data: relatedData } = trpc.products.getRelatedProducts.useQuery({
+    slug,
+    limit: 4,
+  });
 
   const selectedSku = useMemo(() => {
-    if (!options.length) {
-      return;
-    }
+    const options = product?.options ?? [];
+    const skus = product?.productSKUs ?? [];
 
-    if (Object.keys(selectedValues).length !== options.length) {
+    if (
+      !options.length ||
+      Object.keys(selectedValues).length !== options.length
+    ) {
       return;
     }
 
@@ -104,13 +206,14 @@ export const ProductClientPage = ({ slug }: ProductClientPageProps) => {
         );
       })
     );
-  }, [options, skus, selectedValues]);
+  }, [product, selectedValues]);
 
   function handleValueSelect(optionId: string, valueId: string) {
     setSelectedValues((current) => ({
       ...current,
       [optionId]: valueId,
     }));
+    setQuantity(1);
   }
 
   if (!product) {
@@ -140,166 +243,196 @@ export const ProductClientPage = ({ slug }: ProductClientPageProps) => {
     );
   }
 
-  const [minPriceSKU] = product.productSKUs;
+  const { options, productSKUs: skus } = product;
+  const [minPriceSKU] = skus;
 
   const defaultSku = options.length === 0 ? minPriceSKU : undefined;
+  const displaySku = selectedSku ?? minPriceSKU;
+
+  const price = Number(displaySku?.price ?? 0);
+  const originalPrice = Number(displaySku?.originalPrice ?? 0);
+  const hasDiscount = originalPrice > price;
+
+  const discountPercentage = hasDiscount
+    ? Math.round(((originalPrice - price) / originalPrice) * 100)
+    : 0;
+
+  const activeStock = (selectedSku ?? defaultSku)?.stock;
+  const stepperMax = Math.max(1, activeStock ?? 99);
+  const qty = Math.min(quantity, stepperMax);
+
+  const related = relatedData?.products ?? [];
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 pb-10 sm:gap-8 sm:px-6 lg:px-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-col px-4 pb-16 sm:px-6 lg:px-8">
       <ProductBreadcrumb
         productName={product.name}
         category={product.category}
         className="mt-4 sm:mt-6"
       />
 
-      <div className="grid grid-cols-1 gap-8 md:grid-cols-2 md:gap-12 lg:gap-16">
-        {/* Product image */}
-        <section className="w-full">
-          <div className="relative mx-auto aspect-square w-full max-w-md overflow-hidden rounded-xl sm:max-w-lg md:sticky md:top-24">
-            <ProductImage
-              alt={`Image of ${product.name}`}
-              src={selectedSku?.imageUrl ?? product.baseImage}
-            />
-          </div>
-        </section>
+      <div className="mt-5 grid grid-cols-1 gap-8 lg:grid-cols-2 lg:gap-14">
+        {/* Gallery */}
+        <ProductGallery
+          product={product}
+          selectedSku={selectedSku}
+          discountPercentage={discountPercentage}
+          showDiscount={hasDiscount}
+          onSelectValues={setSelectedValues}
+        />
 
         {/* Product information */}
-        <section className="flex min-w-0 flex-col gap-4">
-          <div className="space-y-2">
-            <h1 className="font-semibold text-2xl leading-tight sm:text-3xl">
+        <section className="flex min-w-0 flex-col gap-6">
+          <div>
+            <Link
+              href={`/category/${product.category.slug}`}
+              className="inline-flex w-fit items-center rounded-full border px-3 py-1 font-medium text-muted-foreground text-xs transition-colors hover:bg-accent hover:text-foreground"
+            >
+              {product.category.name}
+            </Link>
+
+            <h1 className="mt-3 font-semibold text-2xl leading-tight tracking-tight sm:text-3xl">
               {product.name}
             </h1>
 
-            {!!selectedSku && (
-              <p className="text-lg sm:text-xl">
-                NPR.{" "}
-                <span className="font-semibold text-2xl">
-                  {Number(selectedSku.price).toLocaleString()}
-                </span>
-              </p>
-            )}
+            <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
+              <ProductRatingSummary productId={product.id} />
+              <StockBadge stock={displaySku?.stock ?? 0} />
+            </div>
           </div>
 
-          <p className="max-w-xl text-muted-foreground text-sm leading-6 sm:text-base">
-            {product.description}
-          </p>
+          {/* Buy box */}
+          <div className="space-y-5 rounded-2xl border bg-card p-5 shadow-xs sm:p-6">
+            {/* Price */}
+            <div>
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span className="font-bold text-3xl tracking-tight">
+                  NPR {price.toLocaleString()}
+                </span>
 
-          {/* Product variants */}
-          {options.length > 0 && (
-            <div className="mt-2 space-y-6 sm:mt-4">
-              {options.map((option) => {
-                const selectedValue = selectedValues[option.id];
+                {hasDiscount && (
+                  <span className="text-base text-muted-foreground line-through">
+                    NPR {originalPrice.toLocaleString()}
+                  </span>
+                )}
 
-                return (
-                  <div key={option.id} className="space-y-3">
-                    <div className="flex items-center justify-between gap-4">
-                      <p className="font-medium text-sm">{option.name}</p>
-
-                      {!!selectedValue && (
-                        <span className="truncate text-muted-foreground text-sm">
-                          {
-                            option.values.find(
-                              (value) => value.id === selectedValue
-                            )?.value
-                          }
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      {option.values.map((value) => {
-                        const isSelected = selectedValue === value.id;
-
-                        const isAvailable = skus.some((sku) => {
-                          if (sku.stock <= 0) {
-                            return false;
-                          }
-
-                          const containsValue = sku.optionValues.some(
-                            (optionValue) =>
-                              optionValue.optionId === option.id &&
-                              optionValue.id === value.id
-                          );
-
-                          if (!containsValue) {
-                            return false;
-                          }
-
-                          return Object.entries(selectedValues).every(
-                            ([selectedOptionId, selectedValueId]) =>
-                              selectedOptionId === option.id ||
-                              sku.optionValues.some(
-                                (optionValue) =>
-                                  optionValue.optionId === selectedOptionId &&
-                                  optionValue.id === selectedValueId
-                              )
-                          );
-                        });
-
-                        return (
-                          <button
-                            key={value.id}
-                            type="button"
-                            disabled={!isAvailable}
-                            onClick={() =>
-                              handleValueSelect(option.id, value.id)
-                            }
-                            className={cn(
-                              "min-h-10 rounded-lg border px-4 py-2 text-sm transition-colors",
-                              "hover:bg-accent",
-                              "disabled:pointer-events-none disabled:opacity-40",
-                              isSelected &&
-                                "border-primary bg-primary text-primary-foreground hover:bg-primary"
-                            )}
-                          >
-                            {value.value}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Selected variant */}
-          {selectedSku && (
-            <div className="rounded-xl border bg-muted/40 p-3.5 sm:p-4">
-              <div className="flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="text-muted-foreground text-sm">
-                    Selected variant
-                  </p>
-
-                  <p className="font-semibold">
-                    NPR. {Number(selectedSku.price).toLocaleString()}
-                  </p>
-                </div>
-
-                {selectedSku.stock < 15 && (
-                  <p className="shrink-0 text-muted-foreground text-sm">
-                    {selectedSku.stock} available
-                  </p>
+                {hasDiscount && (
+                  <Badge variant="destructive" className="font-semibold">
+                    {discountPercentage}% OFF
+                  </Badge>
                 )}
               </div>
-            </div>
-          )}
 
-          {/* Add to cart */}
-          <div className="pt-1 sm:pt-2">
-            <AddToCartButton
-              productId={product.id}
-              productName={product.name}
-              skuId={selectedSku?.id ?? defaultSku?.id}
-              disabled={
-                options.length > 0 && (!selectedSku || selectedSku.stock <= 0)
-              }
-              className="w-full p-6"
-            />
+              {hasDiscount && (
+                <p className="mt-1 font-medium text-emerald-600 text-sm">
+                  You save NPR {(originalPrice - price).toLocaleString()}
+                </p>
+              )}
+            </div>
+
+            {/* Variants */}
+            {options.length > 0 && (
+              <div className="border-t pt-4">
+                <VariantChips
+                  options={options}
+                  skus={skus}
+                  selectedValues={selectedValues}
+                  onSelect={handleValueSelect}
+                />
+              </div>
+            )}
+
+            {/* Quantity + CTA */}
+            <div className="flex items-center gap-3 border-t pt-4">
+              <div className="flex h-11 shrink-0 items-center overflow-hidden rounded-lg border">
+                <button
+                  type="button"
+                  aria-label="Decrease quantity"
+                  onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                  disabled={qty <= 1}
+                  className="flex h-full items-center justify-center px-3 text-muted-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <MinusIcon className="size-3.5" />
+                </button>
+
+                <span className="w-9 text-center font-medium text-sm tabular-nums">
+                  {qty}
+                </span>
+
+                <button
+                  type="button"
+                  aria-label="Increase quantity"
+                  onClick={() =>
+                    setQuantity((q) => Math.min(stepperMax, q + 1))
+                  }
+                  disabled={qty >= stepperMax}
+                  className="flex h-full items-center justify-center px-3 text-muted-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <PlusIcon className="size-3.5" />
+                </button>
+              </div>
+
+              <AddToCartButton
+                className="h-11 flex-1"
+                productId={product.id}
+                productName={product.name}
+                skuId={selectedSku?.id ?? defaultSku?.id}
+                disabled={
+                  options.length > 0 && (!selectedSku || selectedSku.stock <= 0)
+                }
+                quantity={qty}
+                size="lg"
+              />
+            </div>
+
+            {/* Trust row */}
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3 border-t pt-4 sm:grid-cols-4">
+              {TRUST_ITEMS.map(({ icon: Icon, label }) => (
+                <div key={label} className="flex items-center gap-2 text-xs">
+                  <Icon className="size-4 shrink-0 text-muted-foreground" />
+                  <span className="font-medium">{label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Description */}
+          <div className="rounded-2xl border bg-card p-5 shadow-xs sm:p-6">
+            <h2 className="font-semibold text-lg">Description</h2>
+
+            <p className="mt-3 max-w-2xl text-muted-foreground text-sm leading-7 sm:text-base">
+              {product.description}
+            </p>
           </div>
         </section>
       </div>
+
+      {/* Ratings & reviews */}
+      <ReviewsSection productId={product.id} />
+
+      {/* Related products */}
+      {related.length > 0 && (
+        <section className="mt-12 sm:mt-16">
+          <div className="flex items-baseline justify-between gap-4">
+            <h2 className="font-semibold text-xl tracking-tight sm:text-2xl">
+              You may also like
+            </h2>
+
+            <Link
+              href={`/category/${product.category.slug}`}
+              className="shrink-0 text-muted-foreground text-sm transition-colors hover:text-foreground"
+            >
+              View all →
+            </Link>
+          </div>
+
+          <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {related.map((relatedProduct) => (
+              <ProductCard key={relatedProduct.id} product={relatedProduct} />
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 };

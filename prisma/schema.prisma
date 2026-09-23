@@ -19,6 +19,8 @@ model User {
   accounts      Account[]
   cart          Cart?
   orders        Order[]
+  addresses     Address[]
+  reviews       Review[]
 
   @@unique([email])
   @@map("user")
@@ -72,6 +74,16 @@ model Verification {
   @@map("verification")
 }
 
+model Address {
+  id       String @id @default(cuid(2))
+  province String
+  city     String
+  zone     String
+  address  String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId   String
+}
+
 model Category {
   id          String   @id @default(cuid(2))
   name        String
@@ -102,6 +114,7 @@ model Product {
   category    Category        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   options     ProductOption[]
   productSKUs ProductSKU[]
+  reviews     Review[]
 
   @@index([slug])
   @@index([categoryId])
@@ -196,12 +209,21 @@ enum OrderStatus {
   REFUNDED
 }
 
+enum PaymentMethod {
+  COD
+  ESEWA
+  KHALTI
+}
+
 model Order {
-  id           String      @id @default(cuid(2))
-  userId       String?
-  status       OrderStatus @default(PENDING)
-  totalAmount  Decimal     @db.Decimal(10, 2)
-  shippingInfo Json
+  id            String        @id @default(cuid(2))
+  userId        String?
+  status        OrderStatus   @default(PENDING)
+  totalAmount   Decimal       @db.Decimal(10, 2)
+  shippingInfo  Json
+  paymentMethod PaymentMethod @default(COD)
+  paidAt        DateTime?
+  paymentRef    String?
 
   user  User?       @relation(fields: [userId], references: [id])
   items OrderItem[]
@@ -232,4 +254,23 @@ model OrderItem {
 
   @@index([orderId])
   @@map("order_items")
+}
+
+model Review {
+  id        String   @id @default(cuid(2))
+  rating    Int // 1-5 stars
+  comment   String?
+  userId    String
+  productId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([productId])
+  @@index([userId])
+  @@map("reviews")
 }

@@ -9,6 +9,9 @@
     "lint": "biome lint .",
     "format": "biome check --write .",
     "typecheck": "tsc --noEmit",
+    "seed": "bun seed.ts",
+    "seed:images": "bun scripts/fetch-product-images.ts",
+    "check:api": "bun scripts/check-api.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio"
