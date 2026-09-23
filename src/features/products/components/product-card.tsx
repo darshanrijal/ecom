@@ -68,7 +68,7 @@ export const ProductCard = ({
           />
 
           {hasDiscount && (
-            <span className="absolute top-2 left-2 z-20 rounded-md bg-orange-500/40 px-2 py-1 font-semibold text-destructive-foreground text-xs">
+            <span className="absolute top-2 left-2 z-20 rounded-md bg-destructive/80 px-2 py-1 font-semibold text-destructive-foreground text-xs">
               {discountPercentage}% OFF
             </span>
           )}

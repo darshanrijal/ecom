@@ -135,7 +135,7 @@ export const cartRouter = router({
     }),
 
   createCart: protectedProcedure.mutation(async ({ ctx }) => {
-    await ctx.db.cart.upsert({
+    const cart = await ctx.db.cart.upsert({
       create: {
         userId: ctx.user.id,
       },
@@ -144,6 +144,7 @@ export const cartRouter = router({
         userId: ctx.user.id,
       },
     });
+    return cart.id;
   }),
   removeAllItems: protectedProcedure.mutation(async ({ ctx }) => {
     const cart = await ctx.db.cart.findUnique({

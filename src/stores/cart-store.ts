@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { createId } from "@paralleldrive/cuid2";
 
-const GUEST_CART_ID_STORAGE_KEY = "cart_id";
+export const CART_ID_STORAGE_KEY = "cart_id";
 
 export interface GuestCartItem {
   id: string;
@@ -81,12 +81,12 @@ export const useCartStore = create<CartStore>()(
   )
 );
 
-export function initCart() {
+export function initCartLoggedOut() {
   if (typeof window === "undefined") {
-    throw new Error("initCart must be called on the client");
+    throw new Error("initCartLoggedOut must be called on the client");
   }
 
-  const existingCartId = localStorage.getItem(GUEST_CART_ID_STORAGE_KEY);
+  const existingCartId = localStorage.getItem(CART_ID_STORAGE_KEY);
 
   if (existingCartId) {
     return existingCartId;
@@ -94,7 +94,7 @@ export function initCart() {
 
   const cartId = createId();
 
-  localStorage.setItem(GUEST_CART_ID_STORAGE_KEY, cartId);
+  localStorage.setItem(CART_ID_STORAGE_KEY, cartId);
 
   return cartId;
 }

@@ -15,9 +15,9 @@ import { cn } from "@/lib/utils";
 import { formatDate } from "date-fns";
 import { Check, Monitor, Smartphone, Tablet, TrashIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { toast } from "@/components/ui/toast";
+import { LogoutButton } from "@/components/logout-button";
 
 interface UserButtonProps {
   className?: string;
@@ -41,9 +41,7 @@ export const UserButton = ({ className }: UserButtonProps) => {
   const { data } = authClient.useSession();
   const utils = trpc.useUtils();
   const isLoggedIn = !!data?.session.id;
-  const [isLoggingOut, startTransition] = useTransition();
   const initials = data?.user.name?.charAt(0).toUpperCase() || "U";
-  const router = useRouter();
   const [openPopover, setOpenPopover] = useState(false);
   const { mutate: deleteSession, isPending: isDeletingSession } =
     trpc.deleteSession.useMutation({
@@ -67,13 +65,6 @@ export const UserButton = ({ className }: UserButtonProps) => {
       enabled: isLoggedIn,
     }
   );
-
-  function handleSignOut() {
-    startTransition(async () => {
-      await authClient.signOut();
-      router.push("/sign-in");
-    });
-  }
 
   // biome-ignore lint/correctness/noNestedComponentDefinitions: so not to add props
   function ActiveSessions() {
@@ -227,10 +218,7 @@ export const UserButton = ({ className }: UserButtonProps) => {
         <ActiveSessions />
 
         <div>
-          <Button disabled={isLoggingOut} onClick={handleSignOut}>
-            {!!isLoggingOut && <Spinner className="text-sm" />}
-            Sign out
-          </Button>
+          <LogoutButton>Sign out</LogoutButton>
         </div>
       </PopoverContent>
     </Popover>
