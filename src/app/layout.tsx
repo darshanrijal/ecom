@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import "./globals.css";
 import Providers from "./providers";
 import { CreateCart } from "@/components/create-cart";
+import TopLoader from "nextjs-toploader";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -45,6 +46,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="flex min-h-full flex-col">
+        <TopLoader color="oklch(75% 0.183 55.934)" height={2} />
         <Providers>
           {children}
 
