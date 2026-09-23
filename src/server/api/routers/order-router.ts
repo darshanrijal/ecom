@@ -1,5 +1,12 @@
 import { TRPCError } from "@trpc/server";
 import { createId } from "@paralleldrive/cuid2";
+import { env } from "@/config/env";
+import {
+  buildEsewaInitForm,
+  checkTransactionStatus,
+  isEsewaSuccess,
+  newTransactionUuid,
+} from "@/lib/esewa";
 import {
   completePaymentSchema,
   createOrderSchema,
@@ -22,6 +29,8 @@ const orderInclude = {
   },
 };
 
+const TRAILING_SLASH = /\/$/;
+
 interface OrderRecord {
   id: string;
   userId: string | null;
@@ -29,6 +38,7 @@ interface OrderRecord {
   paymentMethod: string;
   paidAt: Date | null;
   paymentRef: string | null;
+  esewaTransactionUuid: string | null;
   totalAmount: { toNumber: () => number };
   shippingInfo: unknown;
   createdAt: Date;
@@ -55,6 +65,7 @@ function serializeOrder(order: OrderRecord) {
     paymentMethod: order.paymentMethod,
     paidAt: order.paidAt,
     paymentRef: order.paymentRef,
+    esewaTransactionUuid: order.esewaTransactionUuid,
     totalAmount: order.totalAmount.toNumber(),
     shippingInfo: order.shippingInfo as ShippingInfo,
     createdAt: order.createdAt,
@@ -163,6 +174,62 @@ export const orderRouter = router({
       });
     }),
 
+  initiateEsewaPayment: publicProcedure
+    .input(orderByIdSchema)
+    .mutation(async ({ ctx, input }) => {
+      const order = await ctx.db.order.findUnique({
+        where: { id: input.orderId },
+      });
+
+      if (!order) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Order not found" });
+      }
+
+      if (order.userId && order.userId !== ctx.session?.user?.id) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "This order belongs to another account",
+        });
+      }
+
+      if (order.paymentMethod !== "ESEWA") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This order does not use eSewa",
+        });
+      }
+
+      if (order.status === "PAID") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This order is already paid",
+        });
+      }
+
+      if (order.status !== "PENDING") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This order can no longer be paid",
+        });
+      }
+
+      const transactionUuid = newTransactionUuid();
+
+      await ctx.db.order.update({
+        where: { id: order.id },
+        data: { esewaTransactionUuid: transactionUuid },
+      });
+
+      const baseUrl = env.NEXT_PUBLIC_BASE_URL.replace(TRAILING_SLASH, "");
+
+      return buildEsewaInitForm({
+        amount: order.totalAmount.toNumber(),
+        transactionUuid,
+        successUrl: `${baseUrl}/api/payments/esewa/success`,
+        failureUrl: `${baseUrl}/checkout/payment-failed`,
+      });
+    }),
+
   completePayment: publicProcedure
     .input(completePaymentSchema)
     .mutation(async ({ ctx, input }) => {
@@ -193,6 +260,14 @@ export const orderRouter = router({
         });
       }
 
+      if (order.paymentMethod === "ESEWA") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "This order is paid through eSewa — complete the payment on the eSewa checkout page",
+        });
+      }
+
       if (order.status !== "PENDING") {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -200,12 +275,85 @@ export const orderRouter = router({
         });
       }
 
-      const prefix = order.paymentMethod === "ESEWA" ? "ESWA" : "KHALT";
-      const paymentRef = `${prefix}-${createId().slice(0, 12).toUpperCase()}`;
+      const paymentRef = `KHALT-${createId().slice(0, 12).toUpperCase()}`;
 
       const updated = await ctx.db.order.update({
         where: { id: order.id },
         data: { status: "PAID", paidAt: new Date(), paymentRef },
+        include: orderInclude,
+      });
+
+      return serializeOrder(updated);
+    }),
+
+  verifyEsewaPayment: publicProcedure
+    .input(orderByIdSchema)
+    .mutation(async ({ ctx, input }) => {
+      const order = await ctx.db.order.findUnique({
+        where: { id: input.orderId },
+        include: orderInclude,
+      });
+
+      if (!order) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Order not found" });
+      }
+
+      if (order.userId && order.userId !== ctx.session?.user?.id) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "This order belongs to another account",
+        });
+      }
+
+      if (order.paymentMethod !== "ESEWA") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This order does not use eSewa",
+        });
+      }
+
+      if (order.status === "PAID") {
+        return serializeOrder(order);
+      }
+
+      if (order.status !== "PENDING") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This order can no longer be paid",
+        });
+      }
+
+      if (!order.esewaTransactionUuid) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "No eSewa payment has been started for this order",
+        });
+      }
+
+      const status = await checkTransactionStatus({
+        transactionUuid: order.esewaTransactionUuid,
+        totalAmount: order.totalAmount.toNumber(),
+      });
+
+      const confirmed =
+        status !== null &&
+        isEsewaSuccess(status.status) &&
+        Number(status.total_amount) === order.totalAmount.toNumber();
+
+      if (!confirmed) {
+        return serializeOrder(order);
+      }
+
+      const paymentRef = `ESWA-${status.ref_id ?? order.esewaTransactionUuid}`;
+
+      const updated = await ctx.db.order.update({
+        where: { id: order.id },
+        data: {
+          status: "PAID",
+          paidAt: new Date(),
+          paymentRef,
+          esewaRefId: status.ref_id,
+        },
         include: orderInclude,
       });
 

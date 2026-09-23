@@ -686,38 +686,80 @@ async function main() {
       "[FORBIDDEN]"
     );
 
-    await check("orders.completePayment (eSewa -> PAID with ref)", async () => {
-      const wire = overTheWire(
-        await authed.orders.completePayment({
+    await checkFails(
+      "orders.completePayment (eSewa -> BAD_REQUEST, real flow)",
+      () =>
+        authed.orders.completePayment({
           orderId: esewaOrderId,
           walletNumber: "9800000000",
-        })
-      );
-      if (wire.status !== "PAID") {
-        throw new Error(`status ${wire.status}, want PAID`);
-      }
-      if (!wire.paidAt) {
-        throw new Error("paidAt missing");
-      }
-      if (typeof wire.paymentRef !== "string" || !wire.paymentRef) {
-        throw new Error("paymentRef missing");
-      }
-      if (!wire.paymentRef.startsWith("ESWA-")) {
-        throw new Error(`paymentRef ${wire.paymentRef}, want ESWA- prefix`);
-      }
-      return wire;
-    });
+        }),
+      "[BAD_REQUEST]"
+    );
+
+    await checkFails(
+      "orders.verifyEsewaPayment (never initiated -> BAD_REQUEST)",
+      () => authed.orders.verifyEsewaPayment({ orderId: esewaOrderId }),
+      "[BAD_REQUEST]"
+    );
 
     await check(
-      "orders.completePayment (already PAID is idempotent)",
+      "orders.initiateEsewaPayment (returns signed eSewa form)",
       async () => {
-        const wire = await authed.orders.completePayment({
-          orderId: esewaOrderId,
-        });
-        if (wire.status !== "PAID") {
-          throw new Error(`status ${wire.status}, want PAID`);
+        const wire = overTheWire(
+          await authed.orders.initiateEsewaPayment({
+            orderId: esewaOrderId,
+          })
+        );
+        if (!wire.url.includes("esewa.com.np")) {
+          throw new Error(`url ${wire.url}, want an eSewa payment endpoint`);
+        }
+        const required = [
+          "amount",
+          "tax_amount",
+          "total_amount",
+          "transaction_uuid",
+          "product_code",
+          "product_service_charge",
+          "product_delivery_charge",
+          "success_url",
+          "failure_url",
+          "signed_field_names",
+          "signature",
+        ];
+        for (const key of required) {
+          if (typeof wire.fields[key] !== "string" || wire.fields[key] === "") {
+            throw new Error(`field ${key} missing or empty`);
+          }
+        }
+        const expectedTotal = Number(skuWithStock.price).toFixed(2);
+        if (wire.fields.total_amount !== expectedTotal) {
+          throw new Error(
+            `total_amount ${wire.fields.total_amount}, want ${expectedTotal}`
+          );
+        }
+        if (!wire.fields.success_url.includes("/api/payments/esewa/success")) {
+          throw new Error(`success_url ${wire.fields.success_url} is wrong`);
+        }
+        if (!wire.fields.failure_url.includes("/checkout/payment-failed")) {
+          throw new Error(`failure_url ${wire.fields.failure_url} is wrong`);
         }
         return wire;
+      }
+    );
+
+    await check(
+      "orders.initiateEsewaPayment (unique transaction_uuid per attempt)",
+      async () => {
+        const first = await authed.orders.initiateEsewaPayment({
+          orderId: esewaOrderId,
+        });
+        const second = await authed.orders.initiateEsewaPayment({
+          orderId: esewaOrderId,
+        });
+        if (first.fields.transaction_uuid === second.fields.transaction_uuid) {
+          throw new Error("transaction_uuid must be unique per initiation");
+        }
+        return second;
       }
     );
 

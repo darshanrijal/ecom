@@ -50,7 +50,12 @@ Required (validated at runtime via `@t3-oss/env-nextjs` in `src/config/env.ts`):
 | `RESEND_API_KEY` | server |
 | `GOOGLE_CLIENT_ID` | server |
 | `GOOGLE_CLIENT_SECRET` | server |
+| `ESEWA_MERCHANT_CODE` | server (default `EPAYTEST`) |
+| `ESEWA_SECRET_KEY` | server (default `8gBm/:&EnhH.1/q`) |
+| `ESEWA_ENV` | server (`sandbox` default | `production`) |
 | `NEXT_PUBLIC_BASE_URL` | client |
+
+The eSewa vars default to the UAT/sandbox merchant (`EPAYTEST`) so the app works out of the box. Set `ESEWA_ENV=production` with real merchant credentials to go live. Sandbox test account: `9711111111` / `Nepal@123` (OTP token `123456`).
 
 No `.env.example` exists. Copy values from `.env` (if present) or set up fresh.
 
@@ -62,6 +67,7 @@ No `.env.example` exists. Copy values from `.env` (if present) or set up fresh.
 - **Feature-based organization:** `src/features/{auth,cart,homepage,products}/components/`.
 - **Cart:** Dual-mode — guest carts use Zustand localStorage (`src/stores/cart-store.ts`), logged-in carts use server-side tRPC.
 - **Auth:** `better-auth` (email/password + Google OAuth). Server config: `src/lib/auth.ts`, client: `src/lib/auth-client.ts`.
+- **Payments:** Real eSewa ePay integration lives in `src/lib/esewa.ts` (HMAC-SHA256 signing, callback decode, status-check API). Initiation is `orders.initiateEsewaPayment` (tRPC); eSewa redirects back to `/api/payments/esewa/success` (route handler that verifies via the status-check API and marks the order PAID) or `/checkout/payment-failed`. Lost-redirect recovery: `orders.verifyEsewaPayment` (orders page "Check payment status"). Khalti remains a demo/mock gateway via `orders.completePayment`.
 
 ## Key paths
 

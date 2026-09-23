@@ -8,6 +8,9 @@ export const env = createEnv({
     RESEND_API_KEY: z.string(),
     GOOGLE_CLIENT_ID: z.string(),
     GOOGLE_CLIENT_SECRET: z.string(),
+    ESEWA_MERCHANT_CODE: z.string().min(1).default("EPAYTEST"),
+    ESEWA_SECRET_KEY: z.string().min(1).default("8gBm/:&EnhH.1/q"),
+    ESEWA_ENV: z.enum(["sandbox", "production"]).default("sandbox"),
   },
   client: {
     NEXT_PUBLIC_BASE_URL: z.url(),

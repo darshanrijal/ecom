@@ -32,9 +32,16 @@ import { NEPAL_PROVINCES, shippingInfoSchema } from "@/lib/order-schema";
 import { cn } from "@/lib/utils";
 import { useOrderStore } from "@/stores/order-store";
 import { ProductImage } from "@/features/products/components/product-image";
+import {
+  EsewaSubmitForm,
+  type EsewaSubmitData,
+} from "@/features/checkout/components/esewa-submit-form";
+import Image from "next/image";
 import { useCartSkus } from "@/hooks/use-cart-skus";
 
 type ShippingFormValues = z.infer<typeof shippingInfoSchema>;
+
+const ESEWA_LOGO = "/eSewa_Official_Logo_Pack/E White.png";
 
 const PAYMENT_OPTIONS = [
   {
@@ -49,7 +56,7 @@ const PAYMENT_OPTIONS = [
     name: "eSewa",
     tagline: "Pay from your eSewa wallet",
     tileClass: "bg-[#60BB46]",
-    letter: "e",
+    logo: { src: ESEWA_LOGO, alt: "eSewa" },
   },
   {
     id: "KHALTI",
@@ -81,7 +88,10 @@ export default function CheckoutPage() {
 
   const addGuestOrder = useOrderStore((state) => state.addOrder);
   const createOrder = trpc.orders.create.useMutation();
+  const initiateEsewa = trpc.orders.initiateEsewaPayment.useMutation();
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("COD");
+  const [esewaForm, setEsewaForm] = useState<EsewaSubmitData | null>(null);
+  const [esewaRedirecting, setEsewaRedirecting] = useState(false);
 
   const form = useForm<ShippingFormValues>({
     resolver: zodResolver(shippingInfoSchema),
@@ -137,6 +147,17 @@ export default function CheckoutPage() {
         cart.clearCart();
       }
 
+      if (paymentMethod === "ESEWA") {
+        try {
+          setEsewaRedirecting(true);
+          const init = await initiateEsewa.mutateAsync({ orderId: order.id });
+          setEsewaForm(init);
+        } catch {
+          router.push(`/checkout/pay/${order.id}`);
+        }
+        return;
+      }
+
       router.push(
         paymentMethod === "COD"
           ? `/orders?new=${order.id}`
@@ -184,6 +205,13 @@ export default function CheckoutPage() {
   }
 
   const walletName = paymentMethod === "ESEWA" ? "eSewa" : "Khalti";
+
+  let orderButtonLabel = `Place order · Rs. ${subtotal.toLocaleString()}`;
+  if (createOrder.isPending) {
+    orderButtonLabel = "Placing your order...";
+  } else if (esewaRedirecting) {
+    orderButtonLabel = "Redirecting to eSewa…";
+  }
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 pt-6 pb-16 sm:px-6 lg:px-8">
@@ -396,8 +424,32 @@ export default function CheckoutPage() {
 
             <div className="mt-5 grid gap-3">
               {PAYMENT_OPTIONS.map((option) => {
-                const Icon = option.letter === "₹" ? BanknoteIcon : null;
+                const Icon =
+                  "letter" in option && option.letter === "₹"
+                    ? BanknoteIcon
+                    : null;
                 const selected = paymentMethod === option.id;
+
+                let tileContent: React.ReactNode;
+                if ("logo" in option && option.logo) {
+                  tileContent = (
+                    <Image
+                      src={option.logo.src}
+                      alt={option.logo.alt}
+                      width={28}
+                      height={28}
+                      className="h-7 w-7 object-contain"
+                    />
+                  );
+                } else if (Icon) {
+                  tileContent = <Icon className="size-5" />;
+                } else {
+                  tileContent = (
+                    <span className="font-bold text-lg">
+                      {"letter" in option ? option.letter : ""}
+                    </span>
+                  );
+                }
 
                 return (
                   <button
@@ -414,17 +466,11 @@ export default function CheckoutPage() {
                   >
                     <span
                       className={cn(
-                        "grid size-10 shrink-0 place-items-center rounded-lg text-white",
+                        "grid size-10 shrink-0 place-items-center overflow-hidden rounded-lg text-white",
                         option.tileClass
                       )}
                     >
-                      {Icon ? (
-                        <Icon className="size-5" />
-                      ) : (
-                        <span className="font-bold text-lg">
-                          {option.letter}
-                        </span>
-                      )}
+                      {tileContent}
                     </span>
 
                     <span className="min-w-0 flex-1">
@@ -563,18 +609,22 @@ export default function CheckoutPage() {
             <Button
               type="submit"
               form="checkout-form"
-              disabled={createOrder.isPending || sessionPending}
+              disabled={
+                createOrder.isPending || esewaRedirecting || sessionPending
+              }
               className="mt-5 h-12 w-full"
             >
-              {createOrder.isPending ? (
+              {createOrder.isPending || esewaRedirecting ? (
                 <Spinner />
               ) : (
                 <LockIcon className="size-4" />
               )}
-              {createOrder.isPending
-                ? "Placing your order..."
-                : `Place order · Rs. ${subtotal.toLocaleString()}`}
+              {orderButtonLabel}
             </Button>
+
+            {!!esewaForm && (
+              <EsewaSubmitForm url={esewaForm.url} fields={esewaForm.fields} />
+            )}
 
             <div className="mt-4 flex items-center justify-center gap-4 text-muted-foreground text-xs">
               <span className="flex items-center gap-1">

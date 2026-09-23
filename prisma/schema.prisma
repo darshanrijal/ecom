@@ -216,14 +216,16 @@ enum PaymentMethod {
 }
 
 model Order {
-  id            String        @id @default(cuid(2))
-  userId        String?
-  status        OrderStatus   @default(PENDING)
-  totalAmount   Decimal       @db.Decimal(10, 2)
-  shippingInfo  Json
-  paymentMethod PaymentMethod @default(COD)
-  paidAt        DateTime?
-  paymentRef    String?
+  id                   String        @id @default(cuid(2))
+  userId               String?
+  status               OrderStatus   @default(PENDING)
+  totalAmount          Decimal       @db.Decimal(10, 2)
+  shippingInfo         Json
+  paymentMethod        PaymentMethod @default(COD)
+  paidAt               DateTime?
+  paymentRef           String?
+  esewaTransactionUuid String?
+  esewaRefId           String?
 
   user  User?       @relation(fields: [userId], references: [id])
   items OrderItem[]
@@ -232,6 +234,7 @@ model Order {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+  @@index([esewaTransactionUuid])
   @@map("orders")
 }
 
