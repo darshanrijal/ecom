@@ -798,22 +798,68 @@ async function main() {
       anon.orders.getById({ orderId: guestOrderId })
     );
 
-    await check("orders.completePayment (guest Khalti -> PAID)", async () => {
-      const wire = await anon.orders.completePayment({
-        orderId: guestOrderId,
-        walletNumber: "9800000000",
-      });
-      if (wire.status !== "PAID") {
-        throw new Error(`status ${wire.status}, want PAID`);
+    await checkFails(
+      "orders.completePayment (Khalti -> BAD_REQUEST, real flow)",
+      () =>
+        anon.orders.completePayment({
+          orderId: guestOrderId,
+          walletNumber: "9800000000",
+        }),
+      "[BAD_REQUEST]"
+    );
+
+    await checkFails(
+      "orders.verifyKhaltiPayment (never initiated -> BAD_REQUEST)",
+      () => anon.orders.verifyKhaltiPayment({ orderId: guestOrderId }),
+      "[BAD_REQUEST]"
+    );
+
+    await check(
+      "orders.initiateKhaltiPayment (live sandbox -> payment portal URL)",
+      async () => {
+        const wire = overTheWire(
+          await anon.orders.initiateKhaltiPayment({ orderId: guestOrderId })
+        );
+        if (!wire.pidx || typeof wire.pidx !== "string") {
+          throw new Error(`pidx ${wire.pidx}, want a non-empty string`);
+        }
+        if (!wire.paymentUrl.includes("pay.khalti.com")) {
+          throw new Error(
+            `paymentUrl ${wire.paymentUrl}, want a Khalti payment portal`
+          );
+        }
+        return wire;
       }
-      if (
-        typeof wire.paymentRef !== "string" ||
-        !wire.paymentRef.startsWith("KHALT-")
-      ) {
-        throw new Error(`paymentRef ${wire.paymentRef}, want KHALT- prefix`);
+    );
+
+    await check(
+      "orders.initiateKhaltiPayment (new pidx per attempt)",
+      async () => {
+        const first = await anon.orders.initiateKhaltiPayment({
+          orderId: guestOrderId,
+        });
+        const second = await anon.orders.initiateKhaltiPayment({
+          orderId: guestOrderId,
+        });
+        if (first.pidx === second.pidx) {
+          throw new Error("pidx must differ between initiations");
+        }
+        return second;
       }
-      return wire;
-    });
+    );
+
+    await check(
+      "orders.verifyKhaltiPayment (initiated, unpaid -> stays PENDING)",
+      async () => {
+        const order = await anon.orders.verifyKhaltiPayment({
+          orderId: guestOrderId,
+        });
+        if (order.status !== "PENDING") {
+          throw new Error(`status ${order.status}, want PENDING`);
+        }
+        return order;
+      }
+    );
   } finally {
     await db.order.deleteMany({
       where: { id: { in: createdOrderIds } },

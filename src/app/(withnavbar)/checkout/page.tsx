@@ -89,9 +89,11 @@ export default function CheckoutPage() {
   const addGuestOrder = useOrderStore((state) => state.addOrder);
   const createOrder = trpc.orders.create.useMutation();
   const initiateEsewa = trpc.orders.initiateEsewaPayment.useMutation();
+  const initiateKhalti = trpc.orders.initiateKhaltiPayment.useMutation();
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("COD");
   const [esewaForm, setEsewaForm] = useState<EsewaSubmitData | null>(null);
   const [esewaRedirecting, setEsewaRedirecting] = useState(false);
+  const [khaltiRedirecting, setKhaltiRedirecting] = useState(false);
 
   const form = useForm<ShippingFormValues>({
     resolver: zodResolver(shippingInfoSchema),
@@ -158,11 +160,18 @@ export default function CheckoutPage() {
         return;
       }
 
-      router.push(
-        paymentMethod === "COD"
-          ? `/orders?new=${order.id}`
-          : `/checkout/pay/${order.id}`
-      );
+      if (paymentMethod === "KHALTI") {
+        try {
+          setKhaltiRedirecting(true);
+          const init = await initiateKhalti.mutateAsync({ orderId: order.id });
+          router.push(init.paymentUrl);
+        } catch {
+          router.push(`/checkout/pay/${order.id}`);
+        }
+        return;
+      }
+
+      router.push(`/orders?new=${order.id}`);
     } catch (error) {
       toast.add({
         type: "error",
@@ -211,6 +220,8 @@ export default function CheckoutPage() {
     orderButtonLabel = "Placing your order...";
   } else if (esewaRedirecting) {
     orderButtonLabel = "Redirecting to eSewa…";
+  } else if (khaltiRedirecting) {
+    orderButtonLabel = "Redirecting to Khalti…";
   }
 
   return (
@@ -610,11 +621,16 @@ export default function CheckoutPage() {
               type="submit"
               form="checkout-form"
               disabled={
-                createOrder.isPending || esewaRedirecting || sessionPending
+                createOrder.isPending ||
+                esewaRedirecting ||
+                khaltiRedirecting ||
+                sessionPending
               }
               className="mt-5 h-12 w-full"
             >
-              {createOrder.isPending || esewaRedirecting ? (
+              {createOrder.isPending ||
+              esewaRedirecting ||
+              khaltiRedirecting ? (
                 <Spinner />
               ) : (
                 <LockIcon className="size-4" />

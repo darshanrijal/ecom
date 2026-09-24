@@ -1,5 +1,4 @@
 import { TRPCError } from "@trpc/server";
-import { createId } from "@paralleldrive/cuid2";
 import { env } from "@/config/env";
 import {
   buildEsewaInitForm,
@@ -7,6 +6,12 @@ import {
   isEsewaSuccess,
   newTransactionUuid,
 } from "@/lib/esewa";
+import {
+  initiateKhaltiPayment,
+  isKhaltiSuccess,
+  lookupKhaltiPayment,
+  newPurchaseOrderId,
+} from "@/lib/khalti";
 import {
   completePaymentSchema,
   createOrderSchema,
@@ -39,6 +44,9 @@ interface OrderRecord {
   paidAt: Date | null;
   paymentRef: string | null;
   esewaTransactionUuid: string | null;
+  esewaRefId: string | null;
+  khaltiPidx: string | null;
+  khaltiTransactionId: string | null;
   totalAmount: { toNumber: () => number };
   shippingInfo: unknown;
   createdAt: Date;
@@ -66,6 +74,8 @@ function serializeOrder(order: OrderRecord) {
     paidAt: order.paidAt,
     paymentRef: order.paymentRef,
     esewaTransactionUuid: order.esewaTransactionUuid,
+    khaltiPidx: order.khaltiPidx,
+    khaltiTransactionId: order.khaltiTransactionId,
     totalAmount: order.totalAmount.toNumber(),
     shippingInfo: order.shippingInfo as ShippingInfo,
     createdAt: order.createdAt,
@@ -230,6 +240,84 @@ export const orderRouter = router({
       });
     }),
 
+  initiateKhaltiPayment: publicProcedure
+    .input(orderByIdSchema)
+    .mutation(async ({ ctx, input }) => {
+      const order = await ctx.db.order.findUnique({
+        where: { id: input.orderId },
+      });
+
+      if (!order) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Order not found" });
+      }
+
+      if (order.userId && order.userId !== ctx.session?.user?.id) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "This order belongs to another account",
+        });
+      }
+
+      if (order.paymentMethod !== "KHALTI") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This order does not use Khalti",
+        });
+      }
+
+      if (order.status === "PAID") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This order is already paid",
+        });
+      }
+
+      if (order.status !== "PENDING") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This order can no longer be paid",
+        });
+      }
+
+      const baseUrl = env.NEXT_PUBLIC_BASE_URL.replace(TRAILING_SLASH, "");
+      const shipping = order.shippingInfo as ShippingInfo;
+
+      const initiated = await initiateKhaltiPayment({
+        purchaseOrderId: newPurchaseOrderId(),
+        purchaseOrderName: `Gada Electronics order ${order.id
+          .slice(-8)
+          .toUpperCase()}`,
+        amountNpr: order.totalAmount.toNumber(),
+        returnUrl: `${baseUrl}/api/payments/khalti/success`,
+        websiteUrl: baseUrl,
+        customerInfo: {
+          name: shipping.fullName,
+          email: shipping.email ?? undefined,
+          phone: shipping.phone,
+        },
+      });
+
+      if (!initiated) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "Couldn't reach Khalti to start the payment. Please try again.",
+        });
+      }
+
+      await ctx.db.order.update({
+        where: { id: order.id },
+        data: { khaltiPidx: initiated.pidx },
+      });
+
+      return {
+        pidx: initiated.pidx,
+        paymentUrl: initiated.paymentUrl,
+        expiresAt: initiated.expiresAt,
+        expiresIn: initiated.expiresIn,
+      };
+    }),
+
   completePayment: publicProcedure
     .input(completePaymentSchema)
     .mutation(async ({ ctx, input }) => {
@@ -268,6 +356,14 @@ export const orderRouter = router({
         });
       }
 
+      if (order.paymentMethod === "KHALTI") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "This order is paid through Khalti — complete the payment on the Khalti checkout page",
+        });
+      }
+
       if (order.status !== "PENDING") {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -275,15 +371,10 @@ export const orderRouter = router({
         });
       }
 
-      const paymentRef = `KHALT-${createId().slice(0, 12).toUpperCase()}`;
-
-      const updated = await ctx.db.order.update({
-        where: { id: order.id },
-        data: { status: "PAID", paidAt: new Date(), paymentRef },
-        include: orderInclude,
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "This order is paid on delivery",
       });
-
-      return serializeOrder(updated);
     }),
 
   verifyEsewaPayment: publicProcedure
@@ -353,6 +444,79 @@ export const orderRouter = router({
           paidAt: new Date(),
           paymentRef,
           esewaRefId: status.ref_id,
+        },
+        include: orderInclude,
+      });
+
+      return serializeOrder(updated);
+    }),
+
+  verifyKhaltiPayment: publicProcedure
+    .input(orderByIdSchema)
+    .mutation(async ({ ctx, input }) => {
+      const order = await ctx.db.order.findUnique({
+        where: { id: input.orderId },
+        include: orderInclude,
+      });
+
+      if (!order) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Order not found" });
+      }
+
+      if (order.userId && order.userId !== ctx.session?.user?.id) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "This order belongs to another account",
+        });
+      }
+
+      if (order.paymentMethod !== "KHALTI") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This order does not use Khalti",
+        });
+      }
+
+      if (order.status === "PAID") {
+        return serializeOrder(order);
+      }
+
+      if (order.status !== "PENDING") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This order can no longer be paid",
+        });
+      }
+
+      if (!order.khaltiPidx) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "No Khalti payment has been started for this order",
+        });
+      }
+
+      const status = await lookupKhaltiPayment(order.khaltiPidx);
+
+      const confirmed =
+        status !== null &&
+        isKhaltiSuccess(status.status) &&
+        status.total_amount ===
+          Math.round(order.totalAmount.toNumber() * 100) &&
+        status.transaction_id !== null;
+
+      if (!confirmed) {
+        return serializeOrder(order);
+      }
+
+      const paymentRef = `KHALT-${status.transaction_id}`;
+
+      const updated = await ctx.db.order.update({
+        where: { id: order.id },
+        data: {
+          status: "PAID",
+          paidAt: new Date(),
+          paymentRef,
+          khaltiTransactionId: status.transaction_id,
         },
         include: orderInclude,
       });

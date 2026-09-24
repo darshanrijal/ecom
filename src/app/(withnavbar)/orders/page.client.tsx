@@ -51,25 +51,37 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
-function EsewaVerifyButton({ order }: { order: Order }) {
+function VerifyPaymentButton({ order }: { order: Order }) {
   const utils = trpc.useUtils();
-  const verify = trpc.orders.verifyEsewaPayment.useMutation({
+  const verifyEsewa = trpc.orders.verifyEsewaPayment.useMutation({
+    onSuccess: () => utils.orders.list.invalidate(),
+  });
+  const verifyKhalti = trpc.orders.verifyKhaltiPayment.useMutation({
     onSuccess: () => utils.orders.list.invalidate(),
   });
   const [note, setNote] = useState("");
 
-  if (order.paymentMethod !== "ESEWA" || !order.esewaTransactionUuid) {
+  const isEsewa =
+    order.paymentMethod === "ESEWA" && !!order.esewaTransactionUuid;
+  const isKhalti = order.paymentMethod === "KHALTI" && !!order.khaltiPidx;
+
+  if (!isEsewa && !isKhalti) {
     return null;
   }
+
+  const walletName = isEsewa ? "eSewa" : "Khalti";
+  const { isPending } = isEsewa ? verifyEsewa : verifyKhalti;
 
   async function handleVerify() {
     setNote("");
     try {
-      const updated = await verify.mutateAsync({ orderId: order.id });
+      const updated = isEsewa
+        ? await verifyEsewa.mutateAsync({ orderId: order.id })
+        : await verifyKhalti.mutateAsync({ orderId: order.id });
       setNote(
         updated.status === "PAID"
           ? "Payment confirmed — your order is now paid!"
-          : "eSewa hasn't confirmed the payment yet. Check back shortly."
+          : `${walletName} hasn't confirmed the payment yet. Check back shortly.`
       );
     } catch (err) {
       setNote(
@@ -87,14 +99,10 @@ function EsewaVerifyButton({ order }: { order: Order }) {
         size="sm"
         className="h-8"
         onClick={handleVerify}
-        disabled={verify.isPending}
+        disabled={isPending}
       >
-        {verify.isPending ? (
-          <Spinner />
-        ) : (
-          <RefreshCwIcon className="size-3.5" />
-        )}
-        {verify.isPending ? "Checking…" : "Already paid? Check payment status"}
+        {isPending ? <Spinner /> : <RefreshCwIcon className="size-3.5" />}
+        {isPending ? "Checking…" : "Already paid? Check payment status"}
       </Button>
       {!!note && <p className="text-xs opacity-80">{note}</p>}
     </div>
@@ -168,7 +176,7 @@ function SuccessBanner({
                   </Link>
                 }
               />
-              <EsewaVerifyButton order={order} />
+              <VerifyPaymentButton order={order} />
             </div>
           )}
         </div>
@@ -335,7 +343,7 @@ function OrderCard({
                 <Link href={`/checkout/pay/${order.id}`}>Complete payment</Link>
               }
             />
-            <EsewaVerifyButton order={order} />
+            <VerifyPaymentButton order={order} />
           </div>
         </div>
       )}

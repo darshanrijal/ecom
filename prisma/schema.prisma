@@ -226,6 +226,8 @@ model Order {
   paymentRef           String?
   esewaTransactionUuid String?
   esewaRefId           String?
+  khaltiPidx           String?
+  khaltiTransactionId  String?
 
   user  User?       @relation(fields: [userId], references: [id])
   items OrderItem[]
@@ -235,6 +237,7 @@ model Order {
 
   @@index([userId])
   @@index([esewaTransactionUuid])
+  @@index([khaltiPidx])
   @@map("orders")
 }
 
