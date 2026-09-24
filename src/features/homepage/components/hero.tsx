@@ -1,11 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  ArrowRightIcon,
-  BadgeCheckIcon,
-  LayersIcon,
-  PackageIcon,
-} from "lucide-react";
+import { ArrowRightIcon, LayersIcon, PackageIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -21,11 +16,7 @@ export function Hero({ productCount, categoryCount }: HeroProps) {
         <div className="relative z-10 grid items-center gap-8 p-6 sm:p-10 md:grid-cols-2 md:p-14">
           {/* Copy */}
           <div className="flex flex-col items-start gap-5">
-            <Badge variant="outline" className="h-6 gap-1.5 px-3">
-              <span
-                aria-hidden="true"
-                className="size-1.5 rounded-full bg-orange-500"
-              />
+            <Badge variant="ghost" className="h-6 gap-1.5 px-3">
               Nepal&apos;s trusted electronics store
             </Badge>
 
@@ -35,7 +26,7 @@ export function Hero({ productCount, categoryCount }: HeroProps) {
 
             <p className="max-w-md text-muted-foreground text-sm leading-6 sm:text-base">
               Mobile phones, TVs, refrigerators, washing machines, ACs and more
-              — genuine products, official warranty and the best after-sales
+              genuine products, official warranty and the best after-sales
               service.
             </p>
 
@@ -93,11 +84,6 @@ export function Hero({ productCount, categoryCount }: HeroProps) {
               sizes="(max-width: 768px) 100vw, 40vw"
               className="relative z-10 object-contain object-bottom drop-shadow-2xl"
             />
-
-            <div className="absolute top-8 right-0 z-20 flex items-center gap-1.5 rounded-full border bg-background/90 px-3 py-1.5 font-medium text-xs shadow-lg backdrop-blur">
-              <BadgeCheckIcon className="size-3.5 text-emerald-600" />
-              Official warranty
-            </div>
           </div>
         </div>
 

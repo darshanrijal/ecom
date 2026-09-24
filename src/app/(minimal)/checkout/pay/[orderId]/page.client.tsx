@@ -89,16 +89,23 @@ export function PayClient({ orderId }: { orderId: string }) {
 
     setError("");
 
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 700));
-      await completePayment.mutateAsync({ orderId, walletNumber });
-      utils.orders.list.invalidate();
-      router.push(`/orders?new=${order.id}`);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Payment failed. Please try again."
-      );
-    }
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    await completePayment.mutateAsync(
+      { orderId, walletNumber },
+      {
+        onSuccess: () => {
+          utils.orders.list.invalidate();
+          router.push(`/orders?new=${order.id}`);
+        },
+        onError: (err) => {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Payment failed. Please try again."
+          );
+        },
+      }
+    );
   }
 
   return (

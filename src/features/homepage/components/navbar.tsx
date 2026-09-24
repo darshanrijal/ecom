@@ -155,7 +155,7 @@ export const Navbar = async () => {
           <SearchProductsButton />
 
           {/* User */}
-          <div className="shrink-0 rounded-full border bg-background p-1 shadow-sm transition-shadow hover:shadow-md">
+          <div className="shrink-0 shadow-sm transition-shadow">
             <UserButton />
           </div>
 

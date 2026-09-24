@@ -126,34 +126,37 @@ export default function CheckoutPage() {
       return;
     }
 
-    try {
-      const order = await createOrder.mutateAsync({
+    await createOrder.mutateAsync(
+      {
         items,
         shippingInfo: values,
         paymentMethod,
-      });
+      },
+      {
+        onSuccess: (order) => {
+          if (!isLoggedIn) {
+            addGuestOrder(order.id);
+            cart.clearCart();
+          }
 
-      if (!isLoggedIn) {
-        addGuestOrder(order.id);
-        cart.clearCart();
+          utils.cart.getCartItems.invalidate();
+          utils.orders.list.invalidate();
+
+          router.push(
+            paymentMethod === "COD"
+              ? `/orders?new=${order.id}`
+              : `/checkout/pay/${order.id}`
+          );
+        },
+        onError: (error) => {
+          toast.add({
+            type: "error",
+            title: "Couldn't place your order",
+            description: error.message,
+          });
+        },
       }
-
-      await utils.cart.getCartItems.invalidate();
-      utils.orders.list.invalidate();
-
-      router.push(
-        paymentMethod === "COD"
-          ? `/orders?new=${order.id}`
-          : `/checkout/pay/${order.id}`
-      );
-    } catch (error) {
-      toast.add({
-        type: "error",
-        title: "Couldn't place your order",
-        description:
-          error instanceof Error ? error.message : "Please try again later.",
-      });
-    }
+    );
   }
 
   const cartEmpty =

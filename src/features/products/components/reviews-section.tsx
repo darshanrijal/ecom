@@ -298,26 +298,30 @@ function WriteReviewCard({
   }, [myReview, form]);
 
   async function onSubmit(values: ReviewFormValues) {
-    try {
-      const wasEditing = !!myReview;
-      await createReview.mutateAsync({ productId, ...values });
-      await utils.reviews.list.invalidate({ productId });
+    const wasEditing = !!myReview;
+    await createReview.mutateAsync(
+      { productId, ...values },
+      {
+        onSuccess: () => {
+          utils.reviews.list.invalidate({ productId });
 
-      toast.add({
-        type: "success",
-        title: wasEditing ? "Review updated" : "Review published",
-        description: wasEditing
-          ? "Thanks for keeping your feedback current."
-          : "Thanks for sharing your experience!",
-      });
-    } catch (error) {
-      toast.add({
-        type: "error",
-        title: "Couldn't save your review",
-        description:
-          error instanceof Error ? error.message : "Please try again later.",
-      });
-    }
+          toast.add({
+            type: "success",
+            title: wasEditing ? "Review updated" : "Review published",
+            description: wasEditing
+              ? "Thanks for keeping your feedback current."
+              : "Thanks for sharing your experience!",
+          });
+        },
+        onError: (error) => {
+          toast.add({
+            type: "error",
+            title: "Couldn't save your review",
+            description: error.message,
+          });
+        },
+      }
+    );
   }
 
   async function onDeleteReview() {
@@ -325,23 +329,27 @@ function WriteReviewCard({
       return;
     }
 
-    try {
-      await deleteReview.mutateAsync({ reviewId: myReview.id });
-      await utils.reviews.list.invalidate({ productId });
+    await deleteReview.mutateAsync(
+      { reviewId: myReview.id },
+      {
+        onSuccess: () => {
+          utils.reviews.list.invalidate({ productId });
 
-      toast.add({
-        type: "success",
-        title: "Review removed",
-        description: "You can write a new one any time.",
-      });
-    } catch (error) {
-      toast.add({
-        type: "error",
-        title: "Couldn't remove your review",
-        description:
-          error instanceof Error ? error.message : "Please try again later.",
-      });
-    }
+          toast.add({
+            type: "success",
+            title: "Review removed",
+            description: "You can write a new one any time.",
+          });
+        },
+        onError: (error) => {
+          toast.add({
+            type: "error",
+            title: "Couldn't remove your review",
+            description: error.message,
+          });
+        },
+      }
+    );
   }
 
   return (

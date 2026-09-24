@@ -213,7 +213,7 @@ export const UserButton = ({ className }: UserButtonProps) => {
   if (!isLoggedIn) {
     return (
       <Button
-        variant="ghost"
+        variant="link"
         size="sm"
         aria-label="Sign in"
         className="gap-1.5 text-muted-foreground"
