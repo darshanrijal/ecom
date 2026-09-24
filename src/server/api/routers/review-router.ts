@@ -5,12 +5,13 @@ import {
   reviewListSchema,
 } from "@/lib/review-schema";
 import { protectedProcedure, publicProcedure, router } from "../trpc";
+import type { Prisma } from "@/generated/prisma/client";
 
 const withAuthor = {
   include: {
     user: { select: { name: true, image: true } },
   },
-};
+} satisfies { include: Prisma.ReviewInclude };
 
 export const reviewRouter = router({
   list: publicProcedure

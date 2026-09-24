@@ -44,6 +44,7 @@ export default function RootLayout({
         inter.variable
       )}
       suppressHydrationWarning
+      data-scroll-behavior="smooth"
     >
       <body className="flex min-h-full flex-col">
         <TopLoader

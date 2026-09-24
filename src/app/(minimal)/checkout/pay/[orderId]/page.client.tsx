@@ -43,6 +43,7 @@ export function PayClient({ orderId }: { orderId: string }) {
   const router = useRouter();
   const [order] = trpc.orders.getById.useSuspenseQuery({ orderId });
   const completePayment = trpc.orders.completePayment.useMutation();
+  const utils = trpc.useUtils();
 
   const [step, setStep] = useState<"wallet" | "otp">("wallet");
   const [walletNumber, setWalletNumber] = useState("");
@@ -91,6 +92,7 @@ export function PayClient({ orderId }: { orderId: string }) {
     try {
       await new Promise((resolve) => setTimeout(resolve, 700));
       await completePayment.mutateAsync({ orderId, walletNumber });
+      utils.orders.list.invalidate();
       router.push(`/orders?new=${order.id}`);
     } catch (err) {
       setError(

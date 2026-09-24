@@ -79,6 +79,7 @@ export default function CheckoutPage() {
     refetch,
   } = useCartSkus();
 
+  const utils = trpc.useUtils();
   const addGuestOrder = useOrderStore((state) => state.addOrder);
   const createOrder = trpc.orders.create.useMutation();
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("COD");
@@ -136,6 +137,9 @@ export default function CheckoutPage() {
         addGuestOrder(order.id);
         cart.clearCart();
       }
+
+      await utils.cart.getCartItems.invalidate();
+      utils.orders.list.invalidate();
 
       router.push(
         paymentMethod === "COD"
