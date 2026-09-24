@@ -1,6 +1,11 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowRightIcon, LayersIcon, PackageIcon } from "lucide-react";
+import {
+  ArrowRightIcon,
+  BadgeCheckIcon,
+  LayersIcon,
+  PackageIcon,
+} from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -19,7 +24,7 @@ export function Hero({ productCount, categoryCount }: HeroProps) {
             <Badge variant="outline" className="h-6 gap-1.5 px-3">
               <span
                 aria-hidden="true"
-                className="size-1.5 rounded-full bg-green-500"
+                className="size-1.5 rounded-full bg-orange-500"
               />
               Nepal&apos;s trusted electronics store
             </Badge>
@@ -67,19 +72,32 @@ export function Hero({ productCount, categoryCount }: HeroProps) {
           </div>
 
           {/* Character art */}
-          <div className="relative hidden aspect-4/3 md:block">
+          <div className="relative h-60 sm:h-80 md:aspect-4/3 md:h-auto">
             <div
               aria-hidden="true"
-              className="absolute inset-x-10 top-4 bottom-0 rounded-full bg-primary/10 blur-3xl"
+              className="absolute top-1/2 left-1/2 size-[85%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-radial from-orange-400/40 via-orange-500/15 to-transparent blur-2xl"
+            />
+            <div
+              aria-hidden="true"
+              className="absolute bottom-6 left-1/2 size-[72%] -translate-x-1/2 rounded-full bg-linear-to-b from-orange-100 via-orange-50 to-transparent ring-1 ring-orange-500/15 dark:from-orange-500/25 dark:via-orange-500/10"
+            />
+            <div
+              aria-hidden="true"
+              className="absolute bottom-3 left-1/2 h-4 w-[58%] -translate-x-1/2 rounded-full bg-black/20 blur-md"
             />
             <Image
               src="/jethalal.png"
               alt="Jethalal welcoming you to Gada Electronics"
               fill
               priority
-              sizes="(max-width: 768px) 0vw, 40vw"
-              className="relative z-10 object-contain object-bottom drop-shadow-xl"
+              sizes="(max-width: 768px) 100vw, 40vw"
+              className="relative z-10 object-contain object-bottom drop-shadow-2xl"
             />
+
+            <div className="absolute top-8 right-0 z-20 flex items-center gap-1.5 rounded-full border bg-background/90 px-3 py-1.5 font-medium text-xs shadow-lg backdrop-blur">
+              <BadgeCheckIcon className="size-3.5 text-emerald-600" />
+              Official warranty
+            </div>
           </div>
         </div>
 

@@ -108,9 +108,6 @@ export const Navbar = async () => {
             className="size-12 object-contain sm:size-14"
             priority
           />
-          <span className="ms-2 hidden font-semibold text-base sm:block">
-            Gada Electronics
-          </span>
         </Link>
 
         {/* Desktop navigation */}
@@ -158,7 +155,7 @@ export const Navbar = async () => {
           <SearchProductsButton />
 
           {/* User */}
-          <div className="hidden shrink-0 rounded-full border bg-background p-1 shadow-sm transition-shadow hover:shadow-md lg:block">
+          <div className="shrink-0 rounded-full border bg-background p-1 shadow-sm transition-shadow hover:shadow-md">
             <UserButton />
           </div>
 

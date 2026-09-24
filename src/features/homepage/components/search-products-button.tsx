@@ -12,6 +12,7 @@ const THRESHOLD = 15;
 export const SearchProductsButton = () => {
   const [showSearchButton, setShowSearchButton] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
+
   const [search, setSearch] = useState("");
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -70,20 +71,11 @@ export const SearchProductsButton = () => {
     openSearch();
   });
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: no closeSearch() in deps
-  useEffect(() => {
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && isOpen) {
-        closeSearch();
-      }
-    };
-
-    window.addEventListener("keydown", handleEscape);
-
-    return () => {
-      window.removeEventListener("keydown", handleEscape);
-    };
-  }, [isOpen]);
+  useHotkey("Escape", () => {
+    if (isOpen) {
+      closeSearch();
+    }
+  });
 
   function handleSearch() {
     if (!search.trim()) {

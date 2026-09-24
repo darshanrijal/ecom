@@ -46,7 +46,11 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="flex min-h-full flex-col">
-        <TopLoader color="oklch(75% 0.183 55.934)" height={2} />
+        <TopLoader
+          color="oklch(75% 0.183 55.934)"
+          height={2.4}
+          showSpinner={false}
+        />
         <Providers>
           {children}
 

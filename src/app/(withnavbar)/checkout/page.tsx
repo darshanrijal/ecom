@@ -408,7 +408,7 @@ export default function CheckoutPage() {
                     className={cn(
                       "flex w-full items-center gap-4 rounded-xl border p-4 text-left transition-all",
                       selected
-                        ? "border-primary bg-primary/[0.04] ring-1 ring-primary"
+                        ? "border-primary bg-primary/4 ring-1 ring-primary"
                         : "hover:border-foreground/30 hover:bg-accent/40"
                     )}
                   >

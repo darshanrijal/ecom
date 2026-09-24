@@ -1,6 +1,11 @@
 "use client";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Avatar,
+  AvatarBadge,
+  AvatarFallback,
+  AvatarImage,
+} from "@/components/ui/avatar";
 import {
   Popover,
   PopoverContent,
@@ -8,13 +13,22 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { trpc } from "@/__rpc/client";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { formatDate } from "date-fns";
-import { Check, Monitor, Smartphone, Tablet, TrashIcon } from "lucide-react";
+import {
+  Check,
+  LogInIcon,
+  Monitor,
+  Smartphone,
+  Tablet,
+  TrashIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 import { useState } from "react";
 import { toast } from "@/components/ui/toast";
 import { LogoutButton } from "@/components/logout-button";
@@ -22,6 +36,8 @@ import { LogoutButton } from "@/components/logout-button";
 interface UserButtonProps {
   className?: string;
 }
+
+const NAME_SEPARATOR = /\s+/;
 
 function DeviceIcon({ userAgent }: { userAgent: string | null }) {
   const agent = userAgent?.toLowerCase() ?? "";
@@ -38,10 +54,18 @@ function DeviceIcon({ userAgent }: { userAgent: string | null }) {
 }
 
 export const UserButton = ({ className }: UserButtonProps) => {
-  const { data } = authClient.useSession();
+  const { data, isPending: sessionPending } = authClient.useSession();
   const utils = trpc.useUtils();
   const isLoggedIn = !!data?.session.id;
-  const initials = data?.user.name?.charAt(0).toUpperCase() || "U";
+  const initials =
+    data?.user.name
+      ?.trim()
+      .split(NAME_SEPARATOR)
+      .slice(0, 2)
+      .map((part) => part.charAt(0).toUpperCase())
+      .join("") ||
+    data?.user.email?.charAt(0).toUpperCase() ||
+    "U";
   const [openPopover, setOpenPopover] = useState(false);
   const { mutate: deleteSession, isPending: isDeletingSession } =
     trpc.deleteSession.useMutation({
@@ -182,28 +206,45 @@ export const UserButton = ({ className }: UserButtonProps) => {
     );
   }
 
-  return (
-    <Popover
-      open={openPopover}
-      onOpenChange={(open) => {
-        if (!isLoggedIn) {
-          return;
-        }
-        setOpenPopover(open);
-      }}
-    >
-      <PopoverTrigger
+  if (sessionPending && !data) {
+    return <Skeleton className="size-8 rounded-full" aria-hidden="true" />;
+  }
+
+  if (!isLoggedIn) {
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        aria-label="Sign in"
+        className="gap-1.5 text-muted-foreground"
         nativeButton={false}
         render={
-          <Avatar className={cn("cursor-pointer", className)}>
-            <AvatarImage
-              src={data?.user.image ?? undefined}
-              alt={data?.user.name ?? "User"}
-              className="hover:grayscale"
-            />
+          <Link href="/sign-in">
+            <LogInIcon className="size-4" />
+            <span className="hidden sm:inline">Sign in</span>
+          </Link>
+        }
+      />
+    );
+  }
 
-            <AvatarFallback>{initials}</AvatarFallback>
-          </Avatar>
+  return (
+    <Popover open={openPopover} onOpenChange={setOpenPopover}>
+      <PopoverTrigger
+        nativeButton={false}
+        aria-label={`Account menu for ${data?.user.name ?? "your account"}`}
+        render={
+          <span className={cn("inline-flex cursor-pointer", className)}>
+            <Avatar>
+              <AvatarImage
+                src={data?.user.image ?? undefined}
+                alt=""
+                className="hover:grayscale"
+              />
+              <AvatarFallback>{initials}</AvatarFallback>
+              <AvatarBadge className="bg-green-500" />
+            </Avatar>
+          </span>
         }
       />
 

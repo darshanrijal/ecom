@@ -1,7 +1,6 @@
 import z from "zod";
 
 const PHONE_PATTERN = /^\+?[\d\s-]{7,16}$/;
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const NON_DIGITS = /\D/g;
 
 export const NEPAL_PROVINCES = [
@@ -36,11 +35,13 @@ export const shippingInfoSchema = z.object({
   email: z
     .string()
     .trim()
-    .refine(
-      (value) => value === "" || EMAIL_PATTERN.test(value),
-      "Enter a valid email address"
-    ),
-  province: z.string().min(1, "Select a province"),
+    .refine((value) => value === "" || z.email().safeParse(value).success),
+  province: z
+    .string()
+    .min(1, "Select a province")
+    .refine((v) => z.enum(NEPAL_PROVINCES).safeParse(v).success, {
+      error: "Invalid province selected",
+    }),
   city: z.string().trim().min(2, "Enter your city or district"),
   address: z.string().trim().min(5, "Enter your street address"),
   note: z.string().max(300, "Note is too long"),
