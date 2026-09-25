@@ -7,7 +7,7 @@ import {
   orderByIdSchema,
   type ShippingInfo,
 } from "@/lib/order-schema";
-import { publicProcedure, router } from "../trpc";
+import { protectedProcedure, publicProcedure, router } from "../trpc";
 
 const orderInclude = {
   items: {
@@ -266,4 +266,12 @@ export const orderRouter = router({
 
       return orders.map((order) => serializeOrder(order));
     }),
+  getAllOrderIds: protectedProcedure.query(async ({ ctx }) => {
+    const data = await ctx.db.order.findMany({
+      where: { userId: ctx.user.id },
+      select: { id: true },
+    });
+
+    return data.map((d) => d.id);
+  }),
 });

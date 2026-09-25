@@ -290,17 +290,17 @@ export function OrdersClientPage({ newOrderId }: OrdersClientPageProps) {
   const session = authClient.useSession();
   const isLoggedIn = !!session.data?.user;
   const guestOrderIds = useOrderStore((state) => state.orderIds);
+  const { data: userOrderIds } = trpc.orders.getAllOrderIds.useQuery(
+    undefined,
+    { enabled: isLoggedIn }
+  );
   const [dismissed, setDismissed] = useState(false);
 
-  const canQuery =
-    !session.isPending && (isLoggedIn || guestOrderIds.length > 0);
+  const { data, isPending } = trpc.orders.list.useQuery({
+    orderIds: userOrderIds ?? guestOrderIds,
+  });
 
-  const { data, isPending } = trpc.orders.list.useQuery(
-    { orderIds: guestOrderIds },
-    { enabled: canQuery }
-  );
-
-  const loading = session.isPending || (canQuery && isPending);
+  const loading = session.isPending || isPending;
   const orders = data ?? [];
   const newOrder = newOrderId
     ? orders.find((order) => order.id === newOrderId)
