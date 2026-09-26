@@ -54,7 +54,6 @@ export default function RootLayout({
         />
         <Providers>
           {children}
-
           <CreateCart />
         </Providers>
       </body>

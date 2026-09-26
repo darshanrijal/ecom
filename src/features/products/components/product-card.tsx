@@ -48,19 +48,18 @@ export const ProductCard = ({
         className
       )}
     >
-      <Link
-        href={`/product/${product.slug}`}
-        className="absolute inset-0 z-10"
-        aria-label={product.name}
-      />
-
-      {/* Image */}
       <div
         className={cn(
-          "relative aspect-square w-full overflow-hidden bg-linear-to-b from-muted/70 to-muted/30",
+          "relative aspect-square w-full overflow-hidden bg-muted",
           imageContainerClassName
         )}
       >
+        <Link
+          href={`/product/${product.slug}`}
+          className="absolute inset-0 z-10"
+          aria-label={product.name}
+        />
+
         <ProductImage
           alt={`Image for ${product.name}`}
           src={product.baseImage}
@@ -68,7 +67,7 @@ export const ProductCard = ({
             "h-full w-full transition-transform duration-300 group-hover:scale-105",
             imageClassName
           )}
-          imageClassName="rounded-none object-contain p-5"
+          imageClassName="rounded-none object-cover h-full w-full"
         />
 
         {hasDiscount && (
@@ -86,50 +85,54 @@ export const ProductCard = ({
         )}
       </div>
 
-      {/* Content */}
+      {/* product details */}
       <div
-        className={cn("flex flex-1 flex-col gap-2 px-4 pt-3", contentClassName)}
+        className={cn(
+          "flex flex-1 flex-col justify-between gap-3 p-4",
+          contentClassName
+        )}
       >
-        <h3
-          className={cn(
-            "line-clamp-2 min-h-10 font-medium text-card-foreground text-sm leading-snug transition-colors group-hover:text-primary",
-            nameClassName
-          )}
-        >
-          {product.name}
-        </h3>
-
-        <div
-          className={cn(
-            "mt-auto flex flex-wrap items-baseline gap-x-2 gap-y-1",
-            priceClassName
-          )}
-        >
-          <span className="font-bold text-base text-foreground">
-            NPR {price.toLocaleString()}
-          </span>
-          {hasDiscount && (
-            <span className="text-muted-foreground text-xs line-through">
-              NPR {originalPrice.toLocaleString()}
+        <div className="flex flex-col gap-1.5">
+          <Link href={`/product/${product.slug}`}>
+            <p
+              className={cn(
+                "font-bold text-base text-foreground",
+                nameClassName
+              )}
+            >
+              {product.name}
+            </p>
+          </Link>
+          <div
+            className={cn(
+              "flex flex-wrap items-baseline gap-x-2 gap-y-1",
+              priceClassName
+            )}
+          >
+            <span className="text-base text-foreground">
+              NPR {price.toLocaleString()}
             </span>
+            {hasDiscount && (
+              <span className="text-muted-foreground text-xs line-through">
+                NPR {originalPrice.toLocaleString()}
+              </span>
+            )}
+          </div>
+
+          {!!(hasDiscount || lowStock) && (
+            <div className="flex items-center justify-between gap-2">
+              {hasDiscount && (
+                <p className="font-medium text-emerald-600 text-xs">
+                  Save NPR {(originalPrice - price).toLocaleString()}
+                </p>
+              )}
+              {!!lowStock && <StockBadge stock={minPriceSku.stock} />}
+            </div>
           )}
         </div>
 
-        {!!(hasDiscount || lowStock) && (
-          <div className="flex items-center justify-between gap-2">
-            {!!hasDiscount && (
-              <p className="font-medium text-emerald-600 text-xs">
-                Save NPR {(originalPrice - price).toLocaleString()}
-              </p>
-            )}
-            {!!lowStock && <StockBadge stock={minPriceSku.stock} />}
-          </div>
-        )}
-      </div>
-
-      <div className="relative z-20 px-4 pt-3 pb-4">
         <AddToCartButton
-          className="w-full"
+          className="relative z-20 w-full"
           productId={product.id}
           productName={product.name}
           disabled={outOfStock}

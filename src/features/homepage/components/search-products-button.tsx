@@ -106,10 +106,12 @@ export const SearchProductsButton = () => {
     >
       <div
         className={cn(
-          "flex h-9 items-center overflow-hidden rounded-md border bg-background shadow-sm",
+          "flex h-9 items-center overflow-hidden rounded-md",
           "transition-[width] duration-300 ease-out",
 
-          isOpen ? "w-[min(58vw,18rem)] sm:w-72" : "w-9"
+          isOpen
+            ? "w-[min(58vw,18rem)] border bg-background shadow-sm sm:w-72"
+            : "w-9"
         )}
       >
         {/* Search button */}
@@ -133,10 +135,11 @@ export const SearchProductsButton = () => {
         <input
           ref={inputRef}
           type="search"
+          enterKeyHint="search"
           value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
+          onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
               handleSearch();
             }
           }}

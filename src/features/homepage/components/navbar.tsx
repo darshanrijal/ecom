@@ -19,6 +19,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { getNavCategories } from "./footer";
 import { SearchProductsButton } from "./search-products-button";
+import { ModeToggle } from "@/components/mode-toggle";
 
 const navbarLinks = [
   {
@@ -49,7 +50,7 @@ export const Navbar = async () => {
                 <Button
                   data-slot="sheet-trigger"
                   size="icon-sm"
-                  variant="outline"
+                  variant="ghost"
                   aria-label="Open menu"
                 >
                   <MenuIcon />
@@ -153,9 +154,9 @@ export const Navbar = async () => {
         {/* Actions */}
         <div className="flex min-w-0 shrink-0 items-center gap-2">
           <SearchProductsButton />
+          <ModeToggle />
 
-          {/* User */}
-          <div className="shrink-0 shadow-sm transition-shadow">
+          <div className="shrink-0">
             <UserButton />
           </div>
 
