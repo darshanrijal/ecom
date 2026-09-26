@@ -31,16 +31,17 @@ export function AdminHeader() {
 
   return (
     <header className="sticky top-0 z-10 flex h-16 items-center gap-2 border-b bg-background/95 backdrop-blur">
-      <div className="flex flex-1 items-center gap-2 px-4">
-        <SidebarTrigger className="-ml-1" />
+      <div className="flex min-w-0 flex-1 items-center gap-2 px-4">
+        <SidebarTrigger className="-ml-1 shrink-0" />
         <Separator orientation="vertical" className="mr-1 h-4" />
-        <Breadcrumb>
-          <BreadcrumbList>
+        <Breadcrumb className="min-w-0 flex-1">
+          <BreadcrumbList className="whitespace-nowrap">
             <BreadcrumbItem>
               <BreadcrumbLink
+                className="inline-flex items-center gap-1.5"
                 render={
                   <Link href="/admin">
-                    <StoreIcon className="-mt-0.5 size-3.5" />
+                    <StoreIcon className="size-4" />
                     Admin
                   </Link>
                 }
@@ -50,7 +51,7 @@ export function AdminHeader() {
             </BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem>
-              <BreadcrumbPage className="font-medium text-foreground">
+              <BreadcrumbPage className="truncate font-medium text-foreground">
                 {title}
               </BreadcrumbPage>
             </BreadcrumbItem>
@@ -63,7 +64,7 @@ export function AdminHeader() {
           <PackageSearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search…"
-            className="w-56 rounded-full pl-8"
+            className="w-40 rounded-full pl-8 xl:w-56"
             aria-label="Search"
           />
         </div>

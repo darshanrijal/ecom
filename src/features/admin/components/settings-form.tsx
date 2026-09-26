@@ -229,7 +229,11 @@ export function SettingsForm() {
                 }}
               >
                 <SelectTrigger id="esewa-env" className="w-full">
-                  <SelectValue />
+                  <SelectValue>
+                    {(value) =>
+                      value === "production" ? "Production" : "Sandbox (UAT)"
+                    }
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="sandbox">Sandbox (UAT)</SelectItem>
@@ -275,7 +279,11 @@ export function SettingsForm() {
                 }}
               >
                 <SelectTrigger id="khalti-env" className="w-full">
-                  <SelectValue />
+                  <SelectValue>
+                    {(value) =>
+                      value === "production" ? "Production" : "Sandbox"
+                    }
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="sandbox">Sandbox</SelectItem>

@@ -34,14 +34,11 @@ import {
 } from "@/features/admin/components/status-badge";
 import { adminOrders, adminStats, topProducts } from "@/features/admin/data";
 
-const statIcons: Record<
-  string,
-  { icon: LucideIcon; tone: "emerald" | "sky" | "purple" | "amber" }
-> = {
-  "Total revenue": { icon: IndianRupeeIcon, tone: "emerald" },
-  "Total orders": { icon: ShoppingCartIcon, tone: "sky" },
-  Customers: { icon: UsersIcon, tone: "purple" },
-  "Avg. order value": { icon: ReceiptTextIcon, tone: "amber" },
+const statIcons: Record<string, LucideIcon> = {
+  "Total revenue": IndianRupeeIcon,
+  "Total orders": ShoppingCartIcon,
+  Customers: UsersIcon,
+  "Avg. order value": ReceiptTextIcon,
 };
 
 const recentOrders = adminOrders.slice(0, 6);
@@ -68,13 +65,8 @@ export default function AdminDashboardPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {adminStats.map((stat) => {
-          const { icon, tone } = statIcons[stat.label] ?? {
-            icon: IndianRupeeIcon,
-            tone: "emerald",
-          };
-          return (
-            <StatCard key={stat.label} {...stat} icon={icon} tone={tone} />
-          );
+          const icon = statIcons[stat.label] ?? IndianRupeeIcon;
+          return <StatCard key={stat.label} {...stat} icon={icon} />;
         })}
       </div>
 

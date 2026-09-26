@@ -7,15 +7,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-type Tone = "emerald" | "sky" | "purple" | "amber";
-
-const tones: Record<Tone, string> = {
-  emerald: "bg-[#60BB46]/15 text-[#3d8f35] dark:text-[#7ed45f]",
-  sky: "bg-sky-500/15 text-sky-700 dark:text-sky-400",
-  purple: "bg-[#5C2D91]/15 text-[#5C2D91] dark:text-[#b386e0]",
-  amber: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
-};
-
 interface StatCardProps {
   label: string;
   value: string;
@@ -23,7 +14,6 @@ interface StatCardProps {
   trend: "up" | "down";
   caption: string;
   icon: LucideIcon;
-  tone?: Tone;
 }
 
 export function StatCard({
@@ -33,21 +23,15 @@ export function StatCard({
   trend,
   caption,
   icon: Icon,
-  tone = "emerald",
 }: StatCardProps) {
   const up = trend === "up";
 
   return (
-    <Card className="shadow-xs">
-      <CardContent className="p-5">
+    <Card size="sm" className="shadow-xs">
+      <CardContent>
         <div className="flex items-center justify-between">
           <p className="font-medium text-muted-foreground text-sm">{label}</p>
-          <span
-            className={cn(
-              "grid size-9 shrink-0 place-items-center rounded-lg",
-              tones[tone]
-            )}
-          >
+          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/5 text-primary">
             <Icon className="size-4" />
           </span>
         </div>

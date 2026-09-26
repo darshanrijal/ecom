@@ -24,14 +24,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Table, TableBody, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  DataTableEmpty,
+  DataTableCell,
+  DataTableHead,
+  DataTableShell,
+} from "@/features/admin/components/data-table";
 import {
   adminOrders,
   gateways,
@@ -128,58 +127,53 @@ export function OrdersTable() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl border bg-card">
+      <DataTableShell>
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <TableHead>Order</TableHead>
-              <TableHead>Customer</TableHead>
-              <TableHead className="text-right">Items</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
-              <TableHead>Payment</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead className="w-10" />
+              <DataTableHead>Order</DataTableHead>
+              <DataTableHead>Customer</DataTableHead>
+              <DataTableHead className="text-right">Items</DataTableHead>
+              <DataTableHead className="text-right">Amount</DataTableHead>
+              <DataTableHead>Payment</DataTableHead>
+              <DataTableHead>Status</DataTableHead>
+              <DataTableHead>Date</DataTableHead>
+              <DataTableHead className="w-10" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
-              <TableRow className="hover:bg-transparent">
-                <TableCell
-                  colSpan={8}
-                  className="h-24 text-center text-muted-foreground"
-                >
-                  No orders match your filters.
-                </TableCell>
-              </TableRow>
+              <DataTableEmpty colSpan={8}>
+                No orders match your filters.
+              </DataTableEmpty>
             ) : (
               filtered.map((order) => (
                 <TableRow key={order.id}>
-                  <TableCell className="font-medium tabular-nums">
+                  <DataTableCell className="font-medium tabular-nums">
                     {order.id}
-                  </TableCell>
-                  <TableCell>
+                  </DataTableCell>
+                  <DataTableCell>
                     <p className="font-medium">{order.customer}</p>
                     <p className="text-muted-foreground text-xs">
                       {order.email}
                     </p>
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
+                  </DataTableCell>
+                  <DataTableCell className="text-right tabular-nums">
                     {order.items}
-                  </TableCell>
-                  <TableCell className="text-right font-medium tabular-nums">
+                  </DataTableCell>
+                  <DataTableCell className="text-right font-medium tabular-nums">
                     Rs. {order.amount.toLocaleString()}
-                  </TableCell>
-                  <TableCell>
+                  </DataTableCell>
+                  <DataTableCell>
                     <GatewayBadge gateway={order.gateway} />
-                  </TableCell>
-                  <TableCell>
+                  </DataTableCell>
+                  <DataTableCell>
                     <OrderStatusBadge status={order.status} />
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
+                  </DataTableCell>
+                  <DataTableCell className="text-muted-foreground">
                     {order.date}
-                  </TableCell>
-                  <TableCell>
+                  </DataTableCell>
+                  <DataTableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger
                         render={
@@ -221,15 +215,15 @@ export function OrdersTable() {
                         />
                       </DropdownMenuContent>
                     </DropdownMenu>
-                  </TableCell>
+                  </DataTableCell>
                 </TableRow>
               ))
             )}
           </TableBody>
         </Table>
-      </div>
+      </DataTableShell>
 
-      <p className="text-muted-foreground text-sm">
+      <p className="text-muted-foreground text-xs">
         Showing {filtered.length} of {adminOrders.length} orders
       </p>
     </div>

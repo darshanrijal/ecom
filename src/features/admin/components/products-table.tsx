@@ -1,23 +1,29 @@
 "use client";
 
-import { useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useDeferredValue, useState } from "react";
 import {
-  CopyIcon,
-  EyeOffIcon,
-  MoreHorizontalIcon,
+  ArchiveIcon,
+  ArchiveRestoreIcon,
   PencilIcon,
+  SearchIcon,
+  Trash2Icon,
 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -26,251 +32,335 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Table, TableBody, TableHeader, TableRow } from "@/components/ui/table";
+import { toast } from "@/components/ui/toast";
+import { type RouterOutputs, trpc } from "@/__rpc/client";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { cn } from "@/lib/utils";
-import {
-  adminProducts,
-  productCategories,
-  productStatuses,
-  type AdminProduct,
-} from "@/features/admin/data";
-import { ProductStatusBadge } from "@/features/admin/components/status-badge";
+  DataTableEmpty,
+  DataTableCell,
+  DataTableHead,
+  DataTableShell,
+} from "./data-table";
 
-function StockBadge({ stock }: { stock: number }) {
-  if (stock === 0) {
+type ProductRow = RouterOutputs["admin"]["products"]["list"]["items"][number];
+
+const formatNPR = (value: number | null) =>
+  value === null || value === undefined
+    ? "—"
+    : new Intl.NumberFormat("en-IN", {
+        style: "currency",
+        currency: "NPR",
+        maximumFractionDigits: 0,
+      }).format(value);
+
+function StatusBadge({ status }: { status: ProductRow["status"] }) {
+  if (status === "Published") {
     return (
-      <span className="rounded-full bg-red-500/15 px-2 py-0.5 font-medium text-red-700 text-xs dark:text-red-400">
-        Out of stock
-      </span>
+      <Badge className="bg-emerald-500/10 text-emerald-600">Published</Badge>
     );
   }
-  if (stock <= 5) {
-    return (
-      <span className="rounded-full bg-amber-500/15 px-2 py-0.5 font-medium text-amber-700 text-xs dark:text-amber-400">
-        {stock} left
-      </span>
-    );
-  }
-  return (
-    <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 font-medium text-emerald-700 text-xs dark:text-emerald-400">
-      {stock} in stock
-    </span>
-  );
-}
-
-function filterProducts(
-  products: AdminProduct[],
-  filters: {
-    query: string;
-    category: string;
-    status: string;
-  }
-) {
-  const query = filters.query.trim().toLowerCase();
-
-  return products.filter((product) => {
-    if (filters.category !== "all" && product.category !== filters.category) {
-      return false;
-    }
-    if (filters.status !== "all" && product.status !== filters.status) {
-      return false;
-    }
-    if (!query) {
-      return true;
-    }
-
-    return (
-      product.name.toLowerCase().includes(query) ||
-      product.sku.toLowerCase().includes(query)
-    );
-  });
+  return <Badge className="bg-amber-500/10 text-amber-600">Draft</Badge>;
 }
 
 export function ProductsTable() {
-  const [query, setQuery] = useState("");
-  const [category, setCategory] = useState("all");
-  const [status, setStatus] = useState("all");
+  const router = useRouter();
+  const utils = trpc.useUtils();
+  const categories = trpc.admin.categories.list.useQuery({});
 
-  const filtered = filterProducts(adminProducts, { query, category, status });
+  const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search);
+  const [categoryId, setCategoryId] = useState("");
+  const [status, setStatus] = useState<"" | "Published" | "Draft">("");
+  const [showArchived, setShowArchived] = useState(false);
+
+  const products = trpc.admin.products.list.useInfiniteQuery(
+    {
+      search: deferredSearch,
+      categoryId: categoryId || undefined,
+      status: status || undefined,
+      showArchived,
+      limit: 10,
+    },
+    {
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
+    }
+  );
+
+  const archiveProduct = trpc.admin.products.archive.useMutation();
+  const restoreProduct = trpc.admin.products.restore.useMutation();
+  const deleteProduct = trpc.admin.products.delete.useMutation();
+  const [toDelete, setToDelete] = useState<ProductRow | null>(null);
+
+  const rows = products.data?.pages.flatMap((page) => page.items) ?? [];
+
+  const archive = async (row: ProductRow) => {
+    await archiveProduct.mutateAsync({ id: row.id });
+    await utils.admin.products.list.invalidate();
+    toast.add({ title: `"${row.name}" archived`, type: "success" });
+  };
+
+  const restore = async (row: ProductRow) => {
+    await restoreProduct.mutateAsync({ id: row.id });
+    await utils.admin.products.list.invalidate();
+    toast.add({ title: `"${row.name}" restored`, type: "success" });
+  };
+
+  const confirmDelete = async () => {
+    if (!toDelete) {
+      return;
+    }
+    try {
+      await deleteProduct.mutateAsync({ id: toDelete.id });
+      toast.add({
+        title: `"${toDelete.name}" permanently deleted`,
+        type: "success",
+      });
+      setToDelete(null);
+    } catch (error) {
+      toast.add({
+        title: "Couldn't delete product",
+        description:
+          error instanceof Error ? error.message : "Something went wrong.",
+        type: "error",
+      });
+    }
+    await utils.admin.products.list.invalidate();
+    await utils.admin.categories.list.invalidate();
+  };
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <Input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search products, SKUs…"
-          className="w-full sm:max-w-xs"
-          aria-label="Search products"
-        />
-        <div className="flex flex-1 justify-start gap-2 sm:justify-end">
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+        <div className="relative min-w-0 flex-1">
+          <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search by name or SKU…"
+            className="pl-9"
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
           <Select
-            value={category}
-            onValueChange={(value) => setCategory(value ?? "all")}
+            value={categoryId}
+            onValueChange={(value) => setCategoryId(value ?? "")}
           >
-            <SelectTrigger className="w-44" aria-label="Filter by category">
-              <SelectValue placeholder="All categories" />
+            <SelectTrigger className="w-44">
+              <SelectValue placeholder="All categories">
+                {(value) =>
+                  value
+                    ? (categories.data?.find(
+                        (category) => category.id === value
+                      )?.name ?? value)
+                    : "All categories"
+                }
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All categories</SelectItem>
-              {productCategories.map((option) => (
-                <SelectItem key={option} value={option}>
-                  {option}
+              <SelectItem value="">All categories</SelectItem>
+              {categories.data?.map((category) => (
+                <SelectItem key={category.id} value={category.id}>
+                  {category.name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
           <Select
             value={status}
-            onValueChange={(value) => setStatus(value ?? "all")}
+            onValueChange={(value) => setStatus(value ?? "")}
           >
-            <SelectTrigger className="w-36" aria-label="Filter by status">
-              <SelectValue placeholder="All statuses" />
+            <SelectTrigger className="w-36">
+              <SelectValue placeholder="Any status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              {productStatuses.map((option) => (
-                <SelectItem key={option} value={option}>
-                  {option}
-                </SelectItem>
-              ))}
+              <SelectItem value="">Any status</SelectItem>
+              <SelectItem value="Published">Published</SelectItem>
+              <SelectItem value="Draft">Draft</SelectItem>
             </SelectContent>
           </Select>
+          <label
+            className="flex cursor-pointer items-center gap-2 text-sm"
+            htmlFor="show-archived"
+          >
+            <Switch
+              id="show-archived"
+              checked={showArchived}
+              onCheckedChange={setShowArchived}
+              aria-label="Show archived products"
+            />
+            Archived
+          </label>
+          <Button size="sm" render={<Link href="/admin/products/new" />}>
+            Add product
+          </Button>
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl border bg-card">
+      <DataTableShell>
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <TableHead>Product</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead className="text-right">Price</TableHead>
-              <TableHead className="text-right">Stock</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="w-10" />
+              <DataTableHead>Product</DataTableHead>
+              <DataTableHead className="hidden md:table-cell">
+                Category
+              </DataTableHead>
+              <DataTableHead className="text-right">Price</DataTableHead>
+              <DataTableHead className="hidden text-right sm:table-cell">
+                Stock
+              </DataTableHead>
+              <DataTableHead>Status</DataTableHead>
+              <DataTableHead className="text-right">Actions</DataTableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.length === 0 ? (
-              <TableRow className="hover:bg-transparent">
-                <TableCell
-                  colSpan={6}
-                  className="h-24 text-center text-muted-foreground"
-                >
-                  No products match your filters.
-                </TableCell>
-              </TableRow>
+            {rows.length === 0 ? (
+              <DataTableEmpty colSpan={6}>
+                {products.isFetching
+                  ? "Loading products…"
+                  : "No products " +
+                    (search || categoryId || status || showArchived
+                      ? "match these filters."
+                      : "yet — add your first one.")}
+              </DataTableEmpty>
             ) : (
-              filtered.map((product) => (
-                <TableRow key={product.sku}>
-                  <TableCell>
+              rows.map((row) => (
+                <TableRow key={row.id}>
+                  <DataTableCell>
                     <div className="flex items-center gap-3">
-                      <div className="relative size-11 shrink-0 overflow-hidden rounded-lg border bg-muted">
-                        <Image
-                          src={product.image}
-                          alt={product.name}
-                          fill
-                          sizes="44px"
-                          className="object-cover"
-                        />
+                      <div className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted font-medium text-xs">
+                        {row.baseImage ? (
+                          <Image
+                            src={row.baseImage}
+                            alt=""
+                            width={36}
+                            height={36}
+                            unoptimized
+                            className="size-full object-cover"
+                          />
+                        ) : (
+                          row.name.slice(0, 1).toUpperCase()
+                        )}
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate font-medium">{product.name}</p>
-                        <p className="text-muted-foreground text-xs uppercase tabular-nums">
-                          {product.sku}
+                        <p className="truncate font-medium">{row.name}</p>
+                        <p className="truncate text-muted-foreground text-xs">
+                          {row.primarySku}
                         </p>
                       </div>
                     </div>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {product.category}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    <p className="font-medium">
-                      Rs. {product.price.toLocaleString()}
-                    </p>
-                    {product.originalPrice ? (
-                      <p
-                        className={cn(
-                          "text-muted-foreground text-xs line-through",
-                          "tabular-nums"
-                        )}
+                  </DataTableCell>
+                  <DataTableCell className="hidden text-muted-foreground md:table-cell">
+                    {row.category.name}
+                  </DataTableCell>
+                  <DataTableCell className="text-right font-medium">
+                    {formatNPR(row.price)}
+                  </DataTableCell>
+                  <DataTableCell className="hidden text-right text-muted-foreground tabular-nums sm:table-cell">
+                    {row.stock}
+                  </DataTableCell>
+                  <DataTableCell>
+                    <StatusBadge status={row.status} />
+                  </DataTableCell>
+                  <DataTableCell className="text-right">
+                    <div className="inline-flex items-center justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Edit ${row.name}`}
+                        onClick={() =>
+                          router.push(`/admin/products/${row.id}/edit`)
+                        }
                       >
-                        Rs. {product.originalPrice.toLocaleString()}
-                      </p>
-                    ) : null}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <StockBadge stock={product.stock} />
-                  </TableCell>
-                  <TableCell>
-                    <ProductStatusBadge status={product.status} />
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger
-                        render={
+                        <PencilIcon />
+                      </Button>
+                      {row.archivedAt ? (
+                        <>
                           <Button
                             variant="ghost"
                             size="icon-sm"
-                            aria-label={`Actions for ${product.name}`}
+                            aria-label={`Restore ${row.name}`}
+                            onClick={() => restore(row)}
                           >
-                            <MoreHorizontalIcon />
+                            <ArchiveRestoreIcon />
                           </Button>
-                        }
-                      />
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel className="max-w-56 truncate">
-                          {product.name}
-                        </DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          render={
-                            <button type="button">
-                              <PencilIcon className="size-4" />
-                              Edit
-                            </button>
-                          }
-                        />
-                        <DropdownMenuItem
-                          render={
-                            <button type="button">
-                              <CopyIcon className="size-4" />
-                              Duplicate
-                            </button>
-                          }
-                        />
-                        <DropdownMenuItem
-                          render={
-                            <button type="button">
-                              <EyeOffIcon className="size-4" />
-                              {product.status === "Published"
-                                ? "Unpublish"
-                                : "Publish"}
-                            </button>
-                          }
-                        />
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="text-red-600 hover:text-red-600 dark:text-red-400 dark:hover:text-red-400"
+                            aria-label={`Permanently delete ${row.name}`}
+                            onClick={() => setToDelete(row)}
+                          >
+                            <Trash2Icon />
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`Archive ${row.name}`}
+                          onClick={() => archive(row)}
+                        >
+                          <ArchiveIcon />
+                        </Button>
+                      )}
+                    </div>
+                  </DataTableCell>
                 </TableRow>
               ))
             )}
           </TableBody>
         </Table>
-      </div>
+        {products.hasNextPage ? (
+          <div className="border-t p-3">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={() => products.fetchNextPage()}
+              disabled={products.isFetchingNextPage}
+            >
+              {products.isFetchingNextPage ? "Loading…" : "Show more"}
+            </Button>
+          </div>
+        ) : null}
+      </DataTableShell>
 
-      <p className="text-muted-foreground text-sm">
-        Showing {filtered.length} of {adminProducts.length} products
+      <p className="text-muted-foreground text-xs">
+        {rows.length} {rows.length === 1 ? "product" : "products"}
       </p>
+
+      <AlertDialog
+        open={toDelete !== null}
+        onOpenChange={(open) => !open && setToDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Permanently delete this product?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {toDelete ? (
+                <>
+                  &quot;{toDelete.name}&quot;, its variants and inventory will
+                  be permanently removed. This action can&apos;t be undone —
+                  order history is kept but reference details are lost.
+                </>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleteProduct.isPending}
+              onClick={confirmDelete}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              Delete permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
