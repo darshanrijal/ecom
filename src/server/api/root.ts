@@ -10,6 +10,7 @@ import { cartRouter } from "./routers/cart-router";
 import { orderRouter } from "./routers/order-router";
 import { productRouter } from "./routers/product-router";
 import { reviewRouter } from "./routers/review-router";
+import { adminRouter } from "./routers/admin-router";
 
 export const appRouter = router({
   health: publicProcedure.query(() => ({
@@ -51,6 +52,7 @@ export const appRouter = router({
   orders: orderRouter,
   products: productRouter,
   reviews: reviewRouter,
+  admin: adminRouter,
 });
 
 export type AppRouter = typeof appRouter;

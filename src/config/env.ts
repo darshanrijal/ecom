@@ -10,6 +10,7 @@ export const env = createEnv({
     GOOGLE_CLIENT_SECRET: z.string(),
     UPLOADTHING_TOKEN: z.string(),
     UPLOADTHING_SECRET_KEY: z.string(),
+    ADMIN_EMAILS: z.string().optional(),
   },
   client: {
     NEXT_PUBLIC_BASE_URL: z.url(),

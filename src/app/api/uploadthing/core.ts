@@ -1,4 +1,5 @@
 import { preventUnauthorized } from "@/lib/auth";
+import { isAdminEmail } from "@/lib/admin";
 import { createUploadthing, type FileRouter } from "uploadthing/next";
 import { UploadThingError } from "uploadthing/server";
 
@@ -20,6 +21,10 @@ export const appFileRouter = {
 
       if (!session || !user) {
         throw new UploadThingError("Unauthorized");
+      }
+
+      if (!isAdminEmail(user.email)) {
+        throw new UploadThingError("Admin access required");
       }
 
       return { userId: user.id };

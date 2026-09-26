@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { isAdminEmail } from "@/lib/admin";
 import { db } from "@/lib/prisma";
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
@@ -43,4 +44,14 @@ export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
       user: ctx.session.user,
     },
   });
+});
+
+export const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
+  if (!isAdminEmail(ctx.user.email)) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Admin access required",
+    });
+  }
+  return next({ ctx });
 });

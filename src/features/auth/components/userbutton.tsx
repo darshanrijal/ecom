@@ -23,6 +23,7 @@ import {
   Check,
   LogInIcon,
   Monitor,
+  ShieldCheckIcon,
   Smartphone,
   Tablet,
   TrashIcon,
@@ -89,6 +90,10 @@ export const UserButton = ({ className }: UserButtonProps) => {
       enabled: isLoggedIn,
     }
   );
+
+  const { data: adminState } = trpc.admin.check.useQuery(undefined, {
+    enabled: isLoggedIn,
+  });
 
   // biome-ignore lint/correctness/noNestedComponentDefinitions: so not to add props
   function ActiveSessions() {
@@ -257,6 +262,23 @@ export const UserButton = ({ className }: UserButtonProps) => {
           <PopoverTitle>Your active sessions</PopoverTitle>
         </PopoverHeader>
         <ActiveSessions />
+
+        {!!adminState?.isAdmin && (
+          <div className="border-t pt-3">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              nativeButton={false}
+              render={
+                <Link href="/admin">
+                  <ShieldCheckIcon className="size-4" />
+                  Admin panel
+                </Link>
+              }
+            />
+          </div>
+        )}
 
         <div>
           <LogoutButton>Sign out</LogoutButton>
