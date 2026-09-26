@@ -8,6 +8,8 @@ export const env = createEnv({
     RESEND_API_KEY: z.string(),
     GOOGLE_CLIENT_ID: z.string(),
     GOOGLE_CLIENT_SECRET: z.string(),
+    UPLOADTHING_TOKEN: z.string(),
+    UPLOADTHING_SECRET_KEY: z.string(),
   },
   client: {
     NEXT_PUBLIC_BASE_URL: z.url(),

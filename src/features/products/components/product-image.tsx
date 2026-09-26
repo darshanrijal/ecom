@@ -36,6 +36,7 @@ export function ProductImage({
         src={src}
         alt={alt}
         fill
+        priority
         className={cn("rounded-lg object-cover", imageClassName)}
         sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
       />

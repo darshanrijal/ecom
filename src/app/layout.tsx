@@ -47,6 +47,7 @@ export default function RootLayout({
       data-scroll-behavior="smooth"
     >
       <body className="flex min-h-full flex-col">
+        {/* <NextSSRPlugin routerConfig={extractRouterConfig(appFileRouter)} /> */}
         <TopLoader
           color="oklch(75% 0.183 55.934)"
           height={2.4}
