@@ -1,5 +1,5 @@
-import { ProductCreateForm } from "@/features/admin/components/product-create-form";
+import { ProductForm } from "@/features/admin/components/product-form";
 
 export default function AdminNewProductPage() {
-  return <ProductCreateForm />;
+  return <ProductForm product={null} />;
 }

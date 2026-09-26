@@ -1,862 +1,545 @@
 import { TRPCError } from "@trpc/server";
-import { isAdminEmail } from "@/lib/admin";
-import {
-  adminCreateCategorySchema,
-  adminCreateProductSchema,
-  adminCreateSkuSchema,
-  adminListOrdersSchema,
-  adminListProductsSchema,
-  adminProductIdSchema,
-  adminSkuIdSchema,
-  adminUpdateOrderStatusSchema,
-  adminUpdateProductSchema,
-  adminUpdateSkuSchema,
-  comboKey,
-  ORDER_TRANSITIONS,
-  RESTOCK_STATUSES,
-} from "@/lib/admin-schema";
-import {
-  cleanupImageIfUnused,
-  cleanupImagesIfUnused,
-  getStorageUsage,
-  sweepUnusedImages,
-} from "@/lib/image-cleanup";
 import { slugify } from "@/lib/catalog";
-import type { ShippingInfo } from "@/lib/order-schema";
-import { adminProcedure, protectedProcedure, router } from "../trpc";
+import type { db } from "@/lib/prisma";
+import { adminProcedure, router } from "../trpc";
+import {
+  byIdSchema,
+  categoryInputSchema,
+  categoryListSchema,
+  categoryUpdateSchema,
+  productCreateSchema,
+  productListSchema,
+  productUpdateSchema,
+} from "@/lib/admin-schema";
+import { disposeOrphanedUploads } from "@/lib/uploads";
 
-/** Prisma unique-constraint violations (e.g. duplicate slug / SKU code). */
-function uniqueViolation(error: unknown) {
-  return (
-    error instanceof Error &&
-    "code" in error &&
-    (error as { code?: unknown }).code === "P2002"
+function isP2002(error: unknown) {
+  if (typeof error !== "object" || error === null || !("code" in error)) {
+    return false;
+  }
+  return (error as { code?: unknown }).code === "P2002";
+}
+
+function enforceUniqueSlug(error: unknown, label: string): never {
+  if (isP2002(error)) {
+    throw new TRPCError({
+      code: "CONFLICT",
+      message: `A ${label} with this slug already exists.`,
+    });
+  }
+  throw error;
+}
+
+function enforceUniqueField(error: unknown): never {
+  if (isP2002(error)) {
+    throw new TRPCError({
+      code: "CONFLICT",
+      message: "This slug or one of these SKU codes is already taken.",
+    });
+  }
+  throw error;
+}
+
+/** Prisma transaction client type, inferred from `db.$transaction`. */
+type Tx = Parameters<Parameters<typeof db.$transaction>[0]>[0];
+
+const optionKey = (option: string, value: string) =>
+  `${option.toLowerCase()}\u0000${value.toLowerCase()}`;
+
+async function createVariants(
+  tx: Tx,
+  productId: string,
+  input: {
+    options: Array<{ name: string; values: string[] }>;
+    skus: Array<{
+      code: string;
+      price: number;
+      originalPrice?: number | null;
+      stock: number;
+      imageUrl?: string;
+      optionValues: Array<{ option: string; value: string }>;
+    }>;
+  },
+  baseImage: string
+) {
+  const valueIdsByKey = new Map<string, string>();
+
+  const optionsWithIds = await Promise.all(
+    input.options.map(async (option) => {
+      const created = await tx.productOption.create({
+        data: { productId, name: option.name },
+      });
+      return { option, id: created.id };
+    })
+  );
+
+  await Promise.all(
+    optionsWithIds.flatMap(({ option, id }) =>
+      option.values.map(async (value) => {
+        const created = await tx.productOptionValue.create({
+          data: { optionId: id, value },
+        });
+        valueIdsByKey.set(optionKey(option.name, value), created.id);
+      })
+    )
+  );
+
+  await Promise.all(
+    input.skus.map(async (sku) => {
+      const valueIds: string[] = [];
+      for (const pair of sku.optionValues) {
+        const id = valueIdsByKey.get(optionKey(pair.option, pair.value));
+        if (!id) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Variant "${pair.option}: ${pair.value}" is not defined.`,
+          });
+        }
+        valueIds.push(id);
+      }
+      await tx.productSKU.create({
+        data: {
+          productId,
+          sku: sku.code,
+          price: sku.price,
+          originalPrice: sku.originalPrice ?? sku.price,
+          stock: sku.stock,
+          imageUrl: sku.imageUrl || baseImage,
+          optionValues: { connect: valueIds.map((id) => ({ id })) },
+        },
+      });
+    })
   );
 }
 
-function notFound(what: string) {
-  return new TRPCError({ code: "NOT_FOUND", message: `${what} not found` });
-}
-
-function badRequest(message: string) {
-  return new TRPCError({ code: "BAD_REQUEST", message });
-}
-
-/** Runs a write, turning unique-constraint failures into a friendly error. */
-async function orUniqueViolation<T>(run: () => Promise<T>, message: string) {
-  try {
-    return await run();
-  } catch (error) {
-    if (uniqueViolation(error)) {
-      throw badRequest(message);
+async function assertNoConflicts(
+  ctxDb: typeof db,
+  opts: {
+    slug?: string;
+    codes: string[];
+    exceptProductId?: string;
+  }
+) {
+  if (opts.slug) {
+    const slugConflict = await ctxDb.product.findUnique({
+      where: { slug: opts.slug },
+      select: { id: true },
+    });
+    if (slugConflict && slugConflict.id !== opts.exceptProductId) {
+      throw new TRPCError({
+        code: "CONFLICT",
+        message: "A product with this slug already exists.",
+      });
     }
-    throw error;
+  }
+  const skuConflict = await ctxDb.productSKU.findFirst({
+    where: {
+      sku: { in: opts.codes },
+      ...(opts.exceptProductId
+        ? { productId: { not: opts.exceptProductId } }
+        : {}),
+    },
+    select: { sku: true },
+  });
+  if (skuConflict) {
+    throw new TRPCError({
+      code: "CONFLICT",
+      message: `SKU code "${skuConflict.sku}" is already in use.`,
+    });
   }
 }
 
-/** Prisma Decimal -> number so responses survive JSON serialization. */
-function serializeSku<T extends { price: unknown; originalPrice: unknown }>(
-  sku: T
-) {
+function serializeDecimal(value: unknown, fallback: number | null = null) {
+  if (value === null || value === undefined) {
+    return fallback;
+  }
+  return Number(value);
+}
+
+const productRowSelect = {
+  id: true,
+  name: true,
+  slug: true,
+  description: true,
+  categoryId: true,
+  baseImage: true,
+  isPublished: true,
+  archivedAt: true,
+  createdAt: true,
+  updatedAt: true,
+  category: { select: { id: true, name: true } },
+  productSKUs: {
+    orderBy: { price: "asc" as const },
+    select: {
+      id: true,
+      sku: true,
+      price: true,
+      originalPrice: true,
+      stock: true,
+      imageUrl: true,
+    },
+  },
+} as const;
+
+function toProductRow(product: {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  categoryId: string;
+  baseImage: string;
+  isPublished: boolean;
+  archivedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  category: { id: string; name: string };
+  productSKUs: Array<{
+    id: string;
+    sku: string;
+    price: unknown;
+    originalPrice: unknown;
+    stock: number;
+    imageUrl: string;
+  }>;
+}) {
+  const skus = product.productSKUs;
+  const primary = skus[0] ?? null;
   return {
-    ...sku,
-    price: Number(sku.price),
-    originalPrice: Number(sku.originalPrice),
+    id: product.id,
+    name: product.name,
+    slug: product.slug,
+    description: product.description,
+    categoryId: product.categoryId,
+    category: product.category,
+    baseImage: product.baseImage,
+    isPublished: product.isPublished,
+    status: product.isPublished ? ("Published" as const) : ("Draft" as const),
+    archivedAt: product.archivedAt,
+    createdAt: product.createdAt,
+    updatedAt: product.updatedAt,
+    skuCount: skus.length,
+    primarySku: primary ? primary.sku : null,
+    productSKUs: skus.map((sku) => ({
+      sku: sku.sku,
+      price: serializeDecimal(sku.price) ?? 0,
+      originalPrice: sku.originalPrice
+        ? serializeDecimal(sku.originalPrice)
+        : null,
+      stock: sku.stock,
+    })),
+    price: serializeDecimal(primary?.price) ?? 0,
+    originalPrice: primary ? serializeDecimal(primary.originalPrice) : null,
+    stock: skus.reduce((sum, sku) => sum + sku.stock, 0),
   };
 }
 
-const optionPairKey = (name: string, value: string) =>
-  JSON.stringify([name, value]);
-
-/** Product-level options derived from the option values on its SKUs. */
-function deriveOptions(
-  skus: Array<{ optionValues: Array<{ name: string; value: string }> }>
-) {
-  const options = new Map<string, Set<string>>();
-  for (const sku of skus) {
-    for (const entry of sku.optionValues) {
-      const values = options.get(entry.name) ?? new Set<string>();
-      values.add(entry.value);
-      options.set(entry.name, values);
-    }
-  }
-  return [...options];
-}
-
-interface OptionWithValues {
-  name: string;
-  values: Array<{ id: string; value: string }>;
-}
-
-interface ChosenSkuValue {
-  name: string;
-  value: string;
-  existingId?: string;
-}
-
-interface SkuValueInput {
-  optionValueIds: string[];
-  newValues: Array<{ name: string; value: string }>;
-}
-
-/** Validates ids in `optionValueIds` all belong to the product's options. */
-function assertKnownValueIds(options: OptionWithValues[], ids: string[]) {
-  const validIds = new Set(
-    options.flatMap((option) => option.values.map((value) => value.id))
-  );
-  for (const id of ids) {
-    if (!validIds.has(id)) {
-      throw badRequest("One of the selected option values does not exist");
-    }
-  }
-}
-
-/** Validates `newValues` against the product's option names, keyed by name. */
-function collectNewValues(
-  options: OptionWithValues[],
-  newValues: Array<{ name: string; value: string }>
-) {
-  const collected = new Map<string, string>();
-  const optionNames = new Set(options.map((option) => option.name));
-  for (const entry of newValues) {
-    if (collected.has(entry.name)) {
-      throw badRequest(`Duplicate new value for "${entry.name}"`);
-    }
-    if (!optionNames.has(entry.name)) {
-      throw badRequest(`This product has no option named "${entry.name}"`);
-    }
-    collected.set(entry.name, entry.value);
-  }
-  return collected;
-}
-
-function pickOptionValue(
-  option: OptionWithValues,
-  picks: OptionWithValues["values"],
-  fresh: string | undefined
-): ChosenSkuValue {
-  if (picks.length === 1) {
-    return {
-      name: option.name,
-      value: picks[0].value,
-      existingId: picks[0].id,
-    };
-  }
-  if (fresh === undefined) {
-    throw badRequest(`Select or add a value for "${option.name}"`);
-  }
-  return { name: option.name, value: fresh };
-}
-
-/**
- * Works out the option value each option gets for a new SKU: either an
- * existing value id, or a brand-new value the transaction will create.
- */
-function resolveChosenValues(
-  options: OptionWithValues[],
-  skuCount: number,
-  input: SkuValueInput
-): ChosenSkuValue[] {
-  if (options.length === 0) {
-    if (input.optionValueIds.length > 0 || input.newValues.length > 0) {
-      throw badRequest("This product has no options to select values for");
-    }
-    if (skuCount > 0) {
-      throw badRequest(
-        "This product has no options, so it can only have one SKU"
-      );
-    }
-    return [];
-  }
-
-  assertKnownValueIds(options, input.optionValueIds);
-  const newByName = collectNewValues(options, input.newValues);
-
-  const chosen: ChosenSkuValue[] = [];
-  for (const option of options) {
-    const picks = option.values.filter((value) =>
-      input.optionValueIds.includes(value.id)
-    );
-    if (picks.length > 1) {
-      throw badRequest(`Select only one value for "${option.name}"`);
-    }
-    const fresh = newByName.get(option.name);
-    if (picks.length === 1 && fresh !== undefined) {
-      throw badRequest(
-        `Pick an existing "${option.name}" value or add a new one — not both`
-      );
-    }
-    chosen.push(pickOptionValue(option, picks, fresh));
-  }
-  return chosen;
-}
-
 export const adminRouter = router({
-  /** Lets the account menu decide whether to show the admin link. */
-  check: protectedProcedure.query(({ ctx }) => ({
-    isAdmin: isAdminEmail(ctx.user.email),
-  })),
-
-  stats: adminProcedure.query(async ({ ctx }) => {
-    const [
-      productCount,
-      publishedCount,
-      skuCount,
-      outOfStockCount,
-      customerCount,
-      statusGroups,
-      revenueAgg,
-      storage,
-    ] = await Promise.all([
-      ctx.db.product.count(),
-      ctx.db.product.count({ where: { isPublished: true } }),
-      ctx.db.productSKU.count(),
-      ctx.db.productSKU.count({ where: { stock: 0 } }),
-      ctx.db.user.count(),
-      ctx.db.order.groupBy({ by: ["status"], _count: { _all: true } }),
-      ctx.db.order.aggregate({
-        where: {
-          status: { in: ["PAID", "PROCESSING", "SHIPPED", "DELIVERED"] },
-        },
-        _sum: { totalAmount: true },
+  categories: router({
+    list: adminProcedure
+      .input(categoryListSchema)
+      .query(async ({ ctx, input }) => {
+        const categories = await ctx.db.category.findMany({
+          where: input.search
+            ? {
+                OR: [
+                  { name: { contains: input.search, mode: "insensitive" } },
+                  { slug: { contains: input.search, mode: "insensitive" } },
+                ],
+              }
+            : undefined,
+          orderBy: { name: "asc" },
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            description: true,
+            createdAt: true,
+            _count: { select: { products: true } },
+          },
+        });
+        return categories.map(({ _count, ...category }) => ({
+          ...category,
+          productCount: _count.products,
+        }));
       }),
-      getStorageUsage(),
-    ]);
 
-    const byStatus: Record<string, number> = {};
-    let orderTotal = 0;
-    for (const group of statusGroups) {
-      byStatus[group.status] = group._count._all;
-      orderTotal += group._count._all;
-    }
+    create: adminProcedure
+      .input(categoryInputSchema)
+      .mutation(async ({ ctx, input }) => {
+        const slug = slugify(input.slug || input.name);
+        try {
+          const created = await ctx.db.category.create({
+            data: {
+              name: input.name,
+              slug,
+              description: input.description ?? null,
+            },
+          });
+          return created;
+        } catch (error) {
+          enforceUniqueSlug(error, "category");
+        }
+      }),
 
-    return {
-      products: {
-        total: productCount,
-        published: publishedCount,
-        drafts: productCount - publishedCount,
-        skus: skuCount,
-        outOfStock: outOfStockCount,
-      },
-      orders: {
-        total: orderTotal,
-        byStatus,
-        revenue: Number(revenueAgg._sum.totalAmount ?? 0),
-      },
-      customers: customerCount,
-      storage,
-    };
+    update: adminProcedure
+      .input(categoryUpdateSchema)
+      .mutation(async ({ ctx, input }) => {
+        const { id, name, slug, description } = input;
+        try {
+          const updated = await ctx.db.category.update({
+            where: { id },
+            data: {
+              ...(name === undefined ? {} : { name }),
+              ...(slug === undefined ? {} : { slug: slugify(slug) }),
+              ...(description === undefined ? {} : { description }),
+            },
+          });
+          return updated;
+        } catch (error) {
+          enforceUniqueSlug(error, "category");
+        }
+      }),
+
+    delete: adminProcedure
+      .input(byIdSchema)
+      .mutation(async ({ ctx, input }) => {
+        const category = await ctx.db.category.findUnique({
+          where: { id: input.id },
+          select: { _count: { select: { products: true } } },
+        });
+        if (!category) {
+          throw new TRPCError({ code: "NOT_FOUND" });
+        }
+        if (category._count.products > 0) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: `Cannot delete: this category still has ${category._count.products} product(s). Archive them, then permanently delete them from the archived view.`,
+          });
+        }
+        await ctx.db.category.delete({ where: { id: input.id } });
+      }),
   }),
 
-  listProducts: adminProcedure
-    .input(adminListProductsSchema)
-    .query(async ({ ctx, input }) => {
-      const products = await ctx.db.product.findMany({
-        take: input.limit + 1,
-        cursor: input.cursor ? { id: input.cursor } : undefined,
-        skip: input.cursor ? 1 : 0,
-        orderBy: { createdAt: "desc" },
-        where: input.search
-          ? {
-              OR: [
-                { name: { contains: input.search, mode: "insensitive" } },
-                { slug: { contains: input.search, mode: "insensitive" } },
-              ],
-            }
-          : undefined,
-        include: {
-          category: { select: { id: true, name: true } },
-          productSKUs: { select: { price: true, stock: true } },
-          _count: { select: { productSKUs: true } },
-        },
-      });
+  products: router({
+    list: adminProcedure
+      .input(productListSchema)
+      .query(async ({ ctx, input }) => {
+        const { limit, cursor } = input;
+        const products = await ctx.db.product.findMany({
+          take: limit + 1,
+          cursor: cursor ? { id: cursor } : undefined,
+          skip: cursor ? 1 : 0,
+          orderBy: { id: "asc" },
+          where: {
+            archivedAt: input.showArchived ? { not: null } : null,
+            ...(input.categoryId ? { categoryId: input.categoryId } : {}),
+            ...(input.status
+              ? { isPublished: input.status === "Published" }
+              : {}),
+            ...(input.search
+              ? {
+                  OR: [
+                    {
+                      name: {
+                        contains: input.search,
+                        mode: "insensitive",
+                      },
+                    },
+                    {
+                      productSKUs: {
+                        some: {
+                          sku: {
+                            contains: input.search,
+                            mode: "insensitive",
+                          },
+                        },
+                      },
+                    },
+                  ],
+                }
+              : {}),
+          },
+          select: productRowSelect,
+        });
 
-      let nextCursor: string | undefined;
-      if (products.length > input.limit) {
-        nextCursor = products.pop()?.id;
-      }
+        let nextCursor: string | null = null;
+        if (products.length > limit) {
+          const extra = products.pop();
+          nextCursor = extra?.id ?? null;
+        }
 
-      return {
-        products: products.map((product) => {
-          const prices = product.productSKUs.map((sku) => Number(sku.price));
-          return {
-            id: product.id,
-            name: product.name,
-            slug: product.slug,
-            baseImage: product.baseImage,
-            isPublished: product.isPublished,
-            createdAt: product.createdAt,
-            category: product.category,
-            skuCount: product._count.productSKUs,
-            totalStock: product.productSKUs.reduce(
-              (sum, sku) => sum + sku.stock,
-              0
-            ),
-            minPrice: prices.length > 0 ? Math.min(...prices) : null,
-          };
-        }),
-        nextCursor,
-      };
-    }),
+        return {
+          items: products.map(toProductRow),
+          nextCursor,
+        };
+      }),
 
-  getProduct: adminProcedure
-    .input(adminProductIdSchema)
-    .query(async ({ ctx, input }) => {
+    get: adminProcedure.input(byIdSchema).query(async ({ ctx, input }) => {
       const product = await ctx.db.product.findUnique({
-        where: { id: input.productId },
+        where: { id: input.id },
         include: {
           category: { select: { id: true, name: true } },
           options: {
-            orderBy: { name: "asc" },
-            include: { values: { orderBy: { value: "asc" } } },
+            include: {
+              values: { select: { id: true, value: true } },
+            },
           },
           productSKUs: {
-            orderBy: { createdAt: "asc" },
-            include: {
-              optionValues: { include: { option: { select: { name: true } } } },
-            },
-          },
-        },
-      });
-
-      if (!product) {
-        throw notFound("Product");
-      }
-
-      return {
-        ...product,
-        productSKUs: product.productSKUs.map((sku) => ({
-          ...serializeSku(sku),
-          labels: sku.optionValues.map(
-            (value) => `${value.option.name}: ${value.value}`
-          ),
-        })),
-      };
-    }),
-
-  createProduct: adminProcedure
-    .input(adminCreateProductSchema)
-    .mutation(async ({ ctx, input }) => {
-      try {
-        return await ctx.db.$transaction(async (tx) => {
-          const slugTaken = await tx.product.findUnique({
-            where: { slug: input.slug },
-            select: { id: true },
-          });
-          if (slugTaken) {
-            throw badRequest("A product with this slug already exists");
-          }
-
-          const codes = input.skus.map((sku) => sku.sku);
-          if (new Set(codes).size !== codes.length) {
-            throw badRequest("Duplicate SKU codes in the same form");
-          }
-          const existing = await tx.productSKU.findMany({
-            where: { sku: { in: codes } },
-            select: { sku: true },
-          });
-          if (existing.length > 0) {
-            throw badRequest(
-              `SKU code already in use: ${existing
-                .map((row) => row.sku)
-                .join(", ")}`
-            );
-          }
-
-          const category = await tx.category.findUnique({
-            where: { id: input.categoryId },
-            select: { id: true },
-          });
-          if (!category) {
-            throw notFound("Category");
-          }
-
-          const product = await tx.product.create({
-            data: {
-              name: input.name,
-              slug: input.slug,
-              description: input.description,
-              categoryId: input.categoryId,
-              baseImage: input.baseImage,
-              isPublished: input.isPublished,
-              options: {
-                create: deriveOptions(input.skus).map(([name, values]) => ({
-                  name,
-                  values: { create: [...values].map((value) => ({ value })) },
-                })),
-              },
-            },
-            include: { options: { include: { values: true } } },
-          });
-
-          const valueIds = new Map<string, string>();
-          for (const option of product.options) {
-            for (const value of option.values) {
-              valueIds.set(optionPairKey(option.name, value.value), value.id);
-            }
-          }
-
-          for (const sku of input.skus) {
-            const connect = sku.optionValues.map((entry) => {
-              const id = valueIds.get(optionPairKey(entry.name, entry.value));
-              if (!id) {
-                throw badRequest("Unknown option value");
-              }
-              return { id };
-            });
-
-            // biome-ignore lint/performance/noAwaitInLoops: sequential creates inside one transaction
-            await tx.productSKU.create({
-              data: {
-                productId: product.id,
-                sku: sku.sku,
-                price: sku.price,
-                originalPrice: sku.originalPrice ?? sku.price,
-                stock: sku.stock,
-                imageUrl: sku.imageUrl ?? product.baseImage,
-                optionValues: { connect },
-              },
-            });
-          }
-
-          return {
-            id: product.id,
-            name: product.name,
-            slug: product.slug,
-          };
-        });
-      } catch (error) {
-        if (uniqueViolation(error)) {
-          throw badRequest("A product or SKU with that identifier exists");
-        }
-        throw error;
-      }
-    }),
-
-  updateProduct: adminProcedure
-    .input(adminUpdateProductSchema)
-    .mutation(async ({ ctx, input }) => {
-      const existing = await ctx.db.product.findUnique({
-        where: { id: input.productId },
-        select: { id: true, slug: true, baseImage: true },
-      });
-      if (!existing) {
-        throw notFound("Product");
-      }
-
-      if (input.slug !== existing.slug) {
-        const slugTaken = await ctx.db.product.findUnique({
-          where: { slug: input.slug },
-          select: { id: true },
-        });
-        if (slugTaken) {
-          throw badRequest("A product with this slug already exists");
-        }
-      }
-
-      const category = await ctx.db.category.findUnique({
-        where: { id: input.categoryId },
-        select: { id: true },
-      });
-      if (!category) {
-        throw notFound("Category");
-      }
-
-      const updated = await orUniqueViolation(
-        () =>
-          ctx.db.product.update({
-            where: { id: input.productId },
-            data: {
-              name: input.name,
-              slug: input.slug,
-              description: input.description,
-              categoryId: input.categoryId,
-              baseImage: input.baseImage,
-              isPublished: input.isPublished,
-            },
-            select: { id: true, name: true, slug: true, isPublished: true },
-          }),
-        "A product with this slug already exists"
-      );
-
-      if (existing.baseImage !== input.baseImage) {
-        await cleanupImageIfUnused(existing.baseImage);
-      }
-
-      return updated;
-    }),
-
-  togglePublish: adminProcedure
-    .input(adminProductIdSchema)
-    .mutation(async ({ ctx, input }) => {
-      const product = await ctx.db.product.findUnique({
-        where: { id: input.productId },
-        select: { id: true, isPublished: true },
-      });
-      if (!product) {
-        throw notFound("Product");
-      }
-
-      return await ctx.db.product.update({
-        where: { id: product.id },
-        data: { isPublished: !product.isPublished },
-        select: { id: true, isPublished: true },
-      });
-    }),
-
-  deleteProduct: adminProcedure
-    .input(adminProductIdSchema)
-    .mutation(async ({ ctx, input }) => {
-      const product = await ctx.db.product.findUnique({
-        where: { id: input.productId },
-        include: { productSKUs: { select: { imageUrl: true } } },
-      });
-      if (!product) {
-        throw notFound("Product");
-      }
-
-      await ctx.db.product.delete({ where: { id: product.id } });
-      await cleanupImagesIfUnused([
-        product.baseImage,
-        ...product.productSKUs.map((sku) => sku.imageUrl),
-      ]);
-
-      return { id: product.id };
-    }),
-
-  createSku: adminProcedure
-    .input(adminCreateSkuSchema)
-    .mutation(async ({ ctx, input }) => {
-      const product = await ctx.db.product.findUnique({
-        where: { id: input.productId },
-        include: {
-          options: { include: { values: true } },
-          productSKUs: {
-            include: {
-              optionValues: { include: { option: { select: { name: true } } } },
-            },
-          },
-        },
-      });
-      if (!product) {
-        throw notFound("Product");
-      }
-
-      const chosen = resolveChosenValues(
-        product.options,
-        product.productSKUs.length,
-        input
-      );
-
-      const wantedCombo = comboKey(chosen);
-      const duplicateCombo = product.productSKUs.some(
-        (sku) =>
-          comboKey(
-            sku.optionValues.map((entry) => ({
-              name: entry.option.name,
-              value: entry.value,
-            }))
-          ) === wantedCombo
-      );
-      if (duplicateCombo) {
-        throw badRequest("A SKU with this option combination already exists");
-      }
-
-      const codeTaken = await ctx.db.productSKU.findUnique({
-        where: { sku: input.sku },
-        select: { id: true },
-      });
-      if (codeTaken) {
-        throw badRequest(`SKU code "${input.sku}" is already in use`);
-      }
-
-      try {
-        const sku = await ctx.db.$transaction(async (tx) => {
-          const connect: Array<{ id: string }> = [];
-
-          for (const entry of chosen) {
-            if (entry.existingId) {
-              connect.push({ id: entry.existingId });
-              continue;
-            }
-
-            const option = product.options.find(
-              (candidate) => candidate.name === entry.name
-            );
-            if (!option) {
-              throw badRequest(
-                `This product has no option named "${entry.name}"`
-              );
-            }
-
-            const reused = option.values.find(
-              (value) => value.value === entry.value
-            );
-            if (reused) {
-              connect.push({ id: reused.id });
-              continue;
-            }
-
-            // biome-ignore lint/performance/noAwaitInLoops: sequential creates inside one transaction
-            const created = await tx.productOptionValue.create({
-              data: { optionId: option.id, value: entry.value },
-            });
-            connect.push({ id: created.id });
-          }
-
-          return await tx.productSKU.create({
-            data: {
-              productId: product.id,
-              sku: input.sku,
-              price: input.price,
-              originalPrice: input.originalPrice ?? input.price,
-              stock: input.stock,
-              imageUrl: input.imageUrl ?? product.baseImage,
-              optionValues: { connect },
-            },
+            orderBy: { price: "asc" },
             include: {
               optionValues: {
-                include: { option: { select: { name: true } } },
+                select: { id: true, optionId: true, value: true },
               },
-            },
-          });
-        });
-
-        return {
-          ...serializeSku(sku),
-          labels: sku.optionValues.map(
-            (entry) => `${entry.option.name}: ${entry.value}`
-          ),
-        };
-      } catch (error) {
-        if (uniqueViolation(error)) {
-          throw badRequest("That SKU code is already in use");
-        }
-        throw error;
-      }
-    }),
-
-  updateSku: adminProcedure
-    .input(adminUpdateSkuSchema)
-    .mutation(async ({ ctx, input }) => {
-      const sku = await ctx.db.productSKU.findUnique({
-        where: { id: input.skuId },
-        include: { product: { select: { id: true, baseImage: true } } },
-      });
-      if (!sku) {
-        throw notFound("SKU");
-      }
-
-      if (input.sku !== sku.sku) {
-        const codeTaken = await ctx.db.productSKU.findUnique({
-          where: { sku: input.sku },
-          select: { id: true },
-        });
-        if (codeTaken) {
-          throw badRequest(`SKU code "${input.sku}" is already in use`);
-        }
-      }
-
-      const nextImage = input.imageUrl ?? sku.product.baseImage;
-
-      const updated = await orUniqueViolation(
-        () =>
-          ctx.db.productSKU.update({
-            where: { id: sku.id },
-            data: {
-              sku: input.sku,
-              price: input.price,
-              originalPrice: input.originalPrice ?? input.price,
-              stock: input.stock,
-              imageUrl: nextImage,
-            },
-          }),
-        "That SKU code is already in use"
-      );
-
-      if (sku.imageUrl !== nextImage) {
-        await cleanupImageIfUnused(sku.imageUrl);
-      }
-
-      return serializeSku(updated);
-    }),
-
-  deleteSku: adminProcedure
-    .input(adminSkuIdSchema)
-    .mutation(async ({ ctx, input }) => {
-      const sku = await ctx.db.productSKU.findUnique({
-        where: { id: input.skuId },
-        include: { product: { select: { id: true } } },
-      });
-      if (!sku) {
-        throw notFound("SKU");
-      }
-
-      const siblings = await ctx.db.productSKU.count({
-        where: { productId: sku.productId },
-      });
-      if (siblings <= 1) {
-        throw badRequest("A product must keep at least one SKU");
-      }
-
-      await ctx.db.productSKU.delete({ where: { id: sku.id } });
-      await cleanupImageIfUnused(sku.imageUrl);
-
-      return { id: sku.id };
-    }),
-
-  listCategories: adminProcedure.query(async ({ ctx }) => {
-    const categories = await ctx.db.category.findMany({
-      orderBy: { name: "asc" },
-      include: { _count: { select: { products: true } } },
-    });
-
-    return categories.map((category) => ({
-      id: category.id,
-      name: category.name,
-      slug: category.slug,
-      description: category.description,
-      productCount: category._count.products,
-    }));
-  }),
-
-  createCategory: adminProcedure
-    .input(adminCreateCategorySchema)
-    .mutation(async ({ ctx, input }) => {
-      const slug = slugify(input.name);
-      if (!slug) {
-        throw badRequest("Category name is invalid");
-      }
-
-      const taken = await ctx.db.category.findUnique({
-        where: { slug },
-        select: { id: true },
-      });
-      if (taken) {
-        throw badRequest(`A category with the slug "${slug}" exists`);
-      }
-
-      try {
-        return await ctx.db.category.create({
-          data: {
-            name: input.name,
-            slug,
-            description: input.description || null,
-          },
-        });
-      } catch (error) {
-        if (uniqueViolation(error)) {
-          throw badRequest(`A category with the slug "${slug}" exists`);
-        }
-        throw error;
-      }
-    }),
-
-  listOrders: adminProcedure
-    .input(adminListOrdersSchema)
-    .query(async ({ ctx, input }) => {
-      const orders = await ctx.db.order.findMany({
-        take: input.limit + 1,
-        cursor: input.cursor ? { id: input.cursor } : undefined,
-        skip: input.cursor ? 1 : 0,
-        orderBy: { createdAt: "desc" },
-        where: input.status ? { status: input.status } : undefined,
-        include: {
-          user: { select: { id: true, name: true, email: true } },
-          items: {
-            select: {
-              id: true,
-              productName: true,
-              skuCode: true,
-              quantity: true,
-              unitPrice: true,
-              totalPrice: true,
-              sku: { select: { imageUrl: true } },
             },
           },
         },
       });
-
-      let nextCursor: string | undefined;
-      if (orders.length > input.limit) {
-        nextCursor = orders.pop()?.id;
+      if (!product) {
+        return null;
       }
-
       return {
-        orders: orders.map((order) => ({
-          id: order.id,
-          status: order.status,
-          paymentMethod: order.paymentMethod,
-          totalAmount: Number(order.totalAmount),
-          paidAt: order.paidAt,
-          paymentRef: order.paymentRef,
-          shippingInfo: order.shippingInfo as ShippingInfo,
-          user: order.user,
-          createdAt: order.createdAt,
-          updatedAt: order.updatedAt,
-          items: order.items.map((item) => ({
-            ...item,
-            unitPrice: Number(item.unitPrice),
-            totalPrice: Number(item.totalPrice),
-            imageUrl: item.sku?.imageUrl ?? null,
-          })),
+        ...product,
+        category: product.category,
+        productSKUs: product.productSKUs.map((sku) => ({
+          ...sku,
+          price: Number(sku.price),
+          originalPrice: sku.originalPrice ? Number(sku.originalPrice) : null,
         })),
-        nextCursor,
       };
     }),
 
-  updateOrderStatus: adminProcedure
-    .input(adminUpdateOrderStatusSchema)
-    .mutation(async ({ ctx, input }) => {
-      const order = await ctx.db.order.findUnique({
-        where: { id: input.orderId },
-        include: { items: { select: { skuId: true, quantity: true } } },
-      });
-      if (!order) {
-        throw notFound("Order");
-      }
+    create: adminProcedure
+      .input(productCreateSchema)
+      .mutation(async ({ ctx, input }) => {
+        const slug = slugify(input.slug || input.name);
+        const baseImage = input.baseImage || "";
+        assertNoConflicts(ctx.db, {
+          slug,
+          codes: input.skus.map((s) => s.code),
+        });
+        try {
+          const product = await ctx.db.$transaction(async (tx) => {
+            const created = await tx.product.create({
+              data: {
+                name: input.name,
+                slug,
+                description: input.description,
+                categoryId: input.categoryId,
+                baseImage,
+                isPublished: input.isPublished,
+              },
+            });
+            await createVariants(tx, created.id, input, baseImage);
+            return created;
+          });
+          return product.id;
+        } catch (error) {
+          enforceUniqueField(error);
+        }
+      }),
 
-      if (order.status === input.status) {
-        return { id: order.id, status: order.status, paidAt: order.paidAt };
-      }
-
-      if (!ORDER_TRANSITIONS[order.status].includes(input.status)) {
-        throw badRequest(
-          `${order.status} orders cannot move to ${input.status}`
-        );
-      }
-
-      return await ctx.db.$transaction(async (tx) => {
-        const updated = await tx.order.update({
-          where: { id: order.id },
-          data: {
-            status: input.status,
-            ...(input.status === "PAID" && !order.paidAt
-              ? { paidAt: new Date() }
-              : {}),
+    update: adminProcedure
+      .input(productUpdateSchema)
+      .mutation(async ({ ctx, input }) => {
+        const { id } = input;
+        const slug = input.slug ? slugify(input.slug) : undefined;
+        const baseImage = input.baseImage || "";
+        const existing = await ctx.db.product.findUnique({
+          where: { id },
+          select: {
+            baseImage: true,
+            productSKUs: { select: { imageUrl: true } },
           },
         });
-
-        if (RESTOCK_STATUSES.includes(input.status)) {
-          for (const item of order.items) {
-            if (!item.skuId) {
-              continue;
-            }
-            // biome-ignore lint/performance/noAwaitInLoops: restock runs sequentially inside the transaction
-            await tx.productSKU.update({
-              where: { id: item.skuId },
-              data: { stock: { increment: item.quantity } },
+        assertNoConflicts(ctx.db, {
+          slug: slug ?? undefined,
+          exceptProductId: id,
+          codes: input.skus.map((s) => s.code),
+        });
+        try {
+          await ctx.db.$transaction(async (tx) => {
+            await tx.productSKU.deleteMany({ where: { productId: id } });
+            await tx.productOption.deleteMany({ where: { productId: id } });
+            await tx.product.update({
+              where: { id },
+              data: {
+                name: input.name,
+                ...(slug === undefined ? {} : { slug }),
+                description: input.description,
+                categoryId: input.categoryId,
+                baseImage,
+                isPublished: input.isPublished,
+              },
             });
-          }
+            await createVariants(tx, id, input, baseImage);
+          });
+          await disposeOrphanedUploads(
+            [
+              existing?.baseImage,
+              ...(existing?.productSKUs.map((sku) => sku.imageUrl) ?? []),
+            ],
+            [baseImage, ...input.skus.map((sku) => sku.imageUrl || baseImage)]
+          );
+          return id;
+        } catch (error) {
+          enforceUniqueField(error);
         }
+      }),
 
-        return {
-          id: updated.id,
-          status: updated.status,
-          paidAt: updated.paidAt,
-        };
-      });
-    }),
+    archive: adminProcedure
+      .input(byIdSchema)
+      .mutation(async ({ ctx, input }) => {
+        await ctx.db.product.update({
+          where: { id: input.id },
+          data: { archivedAt: new Date(), isPublished: false },
+        });
+      }),
 
-  sweepImages: adminProcedure.mutation(() => sweepUnusedImages()),
+    restore: adminProcedure
+      .input(byIdSchema)
+      .mutation(async ({ ctx, input }) => {
+        await ctx.db.product.update({
+          where: { id: input.id },
+          data: { archivedAt: null },
+        });
+      }),
+
+    delete: adminProcedure
+      .input(byIdSchema)
+      .mutation(async ({ ctx, input }) => {
+        const existing = await ctx.db.product.findUnique({
+          where: { id: input.id },
+          select: {
+            baseImage: true,
+            productSKUs: { select: { imageUrl: true } },
+          },
+        });
+        try {
+          await ctx.db.product.delete({ where: { id: input.id } });
+        } catch (error) {
+          const isNotFound =
+            typeof error === "object" &&
+            error !== null &&
+            "code" in error &&
+            (error as { code?: unknown }).code === "P2025";
+          if (!isNotFound) {
+            throw error;
+          }
+          // biome-ignore lint/style/useErrorCause: TRPCError accepts `cause` per its options type
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            cause: error,
+          });
+        }
+        if (existing) {
+          await disposeOrphanedUploads(
+            [
+              existing.baseImage,
+              ...existing.productSKUs.map((sku) => sku.imageUrl),
+            ],
+            []
+          );
+        }
+      }),
+  }),
 });

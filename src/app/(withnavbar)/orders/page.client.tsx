@@ -3,6 +3,7 @@
 import { type RouterOutputs, trpc } from "@/__rpc/client";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import { ProductImage } from "@/features/products/components/product-image";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
@@ -12,6 +13,7 @@ import {
   ChevronDownIcon,
   CircleCheckBigIcon,
   ClockIcon,
+  RefreshCwIcon,
   ShoppingBagIcon,
   XIcon,
 } from "lucide-react";
@@ -46,6 +48,64 @@ function StatusPill({ status }: { status: string }) {
     >
       {status}
     </span>
+  );
+}
+
+function VerifyPaymentButton({ order }: { order: Order }) {
+  const utils = trpc.useUtils();
+  const verifyEsewa = trpc.orders.verifyEsewaPayment.useMutation({
+    onSuccess: () => utils.orders.list.invalidate(),
+  });
+  const verifyKhalti = trpc.orders.verifyKhaltiPayment.useMutation({
+    onSuccess: () => utils.orders.list.invalidate(),
+  });
+  const [note, setNote] = useState("");
+
+  const isEsewa =
+    order.paymentMethod === "ESEWA" && !!order.esewaTransactionUuid;
+  const isKhalti = order.paymentMethod === "KHALTI" && !!order.khaltiPidx;
+
+  if (!isEsewa && !isKhalti) {
+    return null;
+  }
+
+  const walletName = isEsewa ? "eSewa" : "Khalti";
+  const { isPending } = isEsewa ? verifyEsewa : verifyKhalti;
+
+  async function handleVerify() {
+    setNote("");
+    try {
+      const updated = isEsewa
+        ? await verifyEsewa.mutateAsync({ orderId: order.id })
+        : await verifyKhalti.mutateAsync({ orderId: order.id });
+      setNote(
+        updated.status === "PAID"
+          ? "Payment confirmed — your order is now paid!"
+          : `${walletName} hasn't confirmed the payment yet. Check back shortly.`
+      );
+    } catch (err) {
+      setNote(
+        err instanceof Error
+          ? err.message
+          : "Couldn't check the payment status. Please try again."
+      );
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-start gap-1.5">
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-8"
+        onClick={handleVerify}
+        disabled={isPending}
+      >
+        {isPending ? <Spinner /> : <RefreshCwIcon className="size-3.5" />}
+        {isPending ? "Checking…" : "Already paid? Check payment status"}
+      </Button>
+      {!!note && <p className="text-xs opacity-80">{note}</p>}
+    </div>
   );
 }
 
@@ -106,14 +166,18 @@ function SuccessBanner({
           </p>
 
           {!!awaitingPayment && (
-            <Button
-              size="sm"
-              className="mt-3"
-              nativeButton={false}
-              render={
-                <Link href={`/checkout/pay/${order.id}`}>Complete payment</Link>
-              }
-            />
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                nativeButton={false}
+                render={
+                  <Link href={`/checkout/pay/${order.id}`}>
+                    Complete payment
+                  </Link>
+                }
+              />
+              <VerifyPaymentButton order={order} />
+            </div>
           )}
         </div>
       </div>
@@ -159,7 +223,9 @@ function OrderCard({
       : "Paid";
   }
   if (order.status === "PENDING" && order.paymentMethod !== "COD") {
-    paymentDetail = "Awaiting wallet payment";
+    paymentDetail = `Awaiting ${
+      order.paymentMethod === "ESEWA" ? "eSewa" : "Khalti"
+    } payment`;
   }
 
   return (
@@ -268,14 +334,17 @@ function OrderCard({
           <p className="text-amber-800 text-xs dark:text-amber-300">
             Payment pending — your order isn&apos;t confirmed yet.
           </p>
-          <Button
-            size="sm"
-            className="h-8"
-            nativeButton={false}
-            render={
-              <Link href={`/checkout/pay/${order.id}`}>Complete payment</Link>
-            }
-          />
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              className="h-8"
+              nativeButton={false}
+              render={
+                <Link href={`/checkout/pay/${order.id}`}>Complete payment</Link>
+              }
+            />
+            <VerifyPaymentButton order={order} />
+          </div>
         </div>
       )}
     </article>

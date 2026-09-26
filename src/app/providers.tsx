@@ -1,17 +1,12 @@
 import { TRPCReactProvider } from "@/__rpc/client";
 import { Toaster } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ThemeProvider } from "next-themes";
+import { ThemeProvider } from "@/lib/theme";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <TRPCReactProvider>
-      <ThemeProvider
-        attribute="class"
-        defaultTheme="system"
-        enableSystem
-        disableTransitionOnChange
-      >
+      <ThemeProvider>
         <TooltipProvider>
           {children}
           <Toaster />

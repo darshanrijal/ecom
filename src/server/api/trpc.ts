@@ -1,5 +1,4 @@
 import { auth } from "@/lib/auth";
-import { isAdminEmail } from "@/lib/admin";
 import { db } from "@/lib/prisma";
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
@@ -46,12 +45,14 @@ export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
   });
 });
 
-export const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
-  if (!isAdminEmail(ctx.user.email)) {
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "Admin access required",
-    });
+/** Requires a signed-in user whose role in the database is ADMIN. */
+export const adminProcedure = protectedProcedure.use(async ({ ctx, next }) => {
+  const user = await ctx.db.user.findUnique({
+    where: { id: ctx.user.id },
+    select: { role: true },
+  });
+  if (user?.role !== "ADMIN") {
+    throw new TRPCError({ code: "FORBIDDEN" });
   }
   return next({ ctx });
 });
