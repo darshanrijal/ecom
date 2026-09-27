@@ -87,8 +87,6 @@ export function PayClient({ orderId }: { orderId: string }) {
     setPhase("verifying");
     setError("");
 
-    let cancelled = false;
-
     (async () => {
       try {
         const query = new URLSearchParams(searchParams.toString());
@@ -97,9 +95,6 @@ export function PayClient({ orderId }: { orderId: string }) {
           `/api/checkout-session?${query.toString()}`
         );
         const body = (await response.json()) as GatewayBody;
-        if (cancelled) {
-          return;
-        }
         if (body.status === "success") {
           await utils.orders.list.invalidate();
           router.replace(`/orders?new=${order.id}`);
@@ -118,19 +113,12 @@ export function PayClient({ orderId }: { orderId: string }) {
         }
         setPhase("failed");
       } catch {
-        if (cancelled) {
-          return;
-        }
         setError(
           "Could not verify the payment. Check your connection and try again."
         );
         setPhase("failed");
       }
     })();
-
-    return () => {
-      cancelled = true;
-    };
   }, [isGatewayReturn, verifyAttempt, searchParams, order.id, utils, router]);
 
   useEffect(() => {

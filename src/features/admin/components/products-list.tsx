@@ -43,12 +43,12 @@ export function AdminProductsList() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = trpc.admin.listProducts.useInfiniteQuery(
+  } = trpc.admin.products.list.useInfiniteQuery(
     { limit: 20, search: appliedSearch || undefined },
     { getNextPageParam: (lastPage) => lastPage.nextCursor }
   );
 
-  const products = data?.pages.flatMap((page) => page.products) ?? [];
+  const products = data?.pages.flatMap((page) => page.items) ?? [];
 
   const togglePublish = trpc.admin.togglePublish.useMutation({
     onSuccess: (result) => {
@@ -56,7 +56,7 @@ export function AdminProductsList() {
         type: "success",
         title: result.isPublished ? "Product published" : "Product unpublished",
       });
-      utils.admin.listProducts.invalidate();
+      utils.admin.products.list.invalidate();
     },
     onError: (error) => {
       toast.add({
@@ -67,11 +67,11 @@ export function AdminProductsList() {
     },
   });
 
-  const removeProduct = trpc.admin.deleteProduct.useMutation({
+  const removeProduct = trpc.admin.products.delete.useMutation({
     onSuccess: () => {
       toast.add({ type: "success", title: "Product deleted" });
       setPendingDeleteId(null);
-      utils.admin.listProducts.invalidate();
+      utils.admin.products.list.invalidate();
     },
     onError: (error) => {
       toast.add({
@@ -202,10 +202,10 @@ export function AdminProductsList() {
                     <Badge variant="outline">{product.category.name}</Badge>
                   </TableCell>
                   <TableCell className="text-right text-sm">
-                    {formatPrice(product.minPrice)}
+                    {formatPrice(product.price)}
                   </TableCell>
                   <TableCell className="text-right text-sm">
-                    {product.totalStock}
+                    {product.stock}
                   </TableCell>
                   <TableCell className="text-right text-sm">
                     {product.skuCount}
@@ -251,7 +251,7 @@ export function AdminProductsList() {
                             size="sm"
                             disabled={removeProduct.isPending}
                             onClick={() =>
-                              removeProduct.mutate({ productId: product.id })
+                              removeProduct.mutate({ id: product.id })
                             }
                           >
                             Confirm
