@@ -2,12 +2,17 @@
 
 import { trpc } from "@/__rpc/client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { ArrowLeftIcon, LockIcon, ShieldCheckIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  CircleAlertIcon,
+  LockIcon,
+  RefreshCwIcon,
+  ShieldCheckIcon,
+} from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
 interface WalletBrand {
   name: string;
@@ -27,85 +32,156 @@ const KHALTI: WalletBrand = {
   header: "from-[#5C2D91] to-[#7d2fb5]",
 };
 
-const NON_DIGITS = /\D/g;
-const COUNTRY_CODE = /^977/;
-const OTP_CODE = /^\d{4}$/;
-
-function maskWallet(value: string) {
-  const digits = value.replace(NON_DIGITS, "").replace(COUNTRY_CODE, "");
-  if (digits.length < 4) {
-    return digits;
-  }
-  return `${digits.slice(0, 2)}*****${digits.slice(-2)}`;
+interface EsewaRedirect {
+  paymentUrl: string;
+  fields: Record<string, string>;
 }
+
+interface GatewayBody {
+  status?: string;
+  message?: string;
+}
+
+type Phase = "init" | "redirecting" | "verifying" | "failed";
 
 export function PayClient({ orderId }: { orderId: string }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [order] = trpc.orders.getById.useSuspenseQuery({ orderId });
-  const completePayment = trpc.orders.completePayment.useMutation();
   const utils = trpc.useUtils();
 
-  const [step, setStep] = useState<"wallet" | "otp">("wallet");
-  const [walletNumber, setWalletNumber] = useState("");
-  const [otp, setOtp] = useState("");
-  const [error, setError] = useState("");
+  const brand = order.paymentMethod === "ESEWA" ? ESEWA : KHALTI;
+  const gatewayData = searchParams.get("data");
+  const gatewayTransaction =
+    searchParams.get("pidx") ?? searchParams.get("txnid");
+  const isGatewayReturn =
+    order.paymentMethod === "ESEWA" ? !!gatewayData : !!gatewayTransaction;
+  const returnStatus = searchParams.get("status");
+  const declined =
+    !isGatewayReturn && !!returnStatus && returnStatus !== "COMPLETE";
+  const needsPayment =
+    order.status === "PENDING" && order.paymentMethod !== "COD";
 
-  const needsPayment = order.status !== "PAID" && order.paymentMethod !== "COD";
+  const [phase, setPhase] = useState<Phase>(() =>
+    isGatewayReturn ? "verifying" : "init"
+  );
+  const [error, setError] = useState("");
+  const [verifyAttempt, setVerifyAttempt] = useState(0);
+  const [esewaRedirect, setEsewaRedirect] = useState<EsewaRedirect | null>(
+    null
+  );
+  const formRef = useRef<HTMLFormElement>(null);
+  const lastVerifyAttempt = useRef(-1);
 
   useEffect(() => {
-    if (!needsPayment) {
+    if (!needsPayment && !isGatewayReturn) {
       router.replace(`/orders?new=${order.id}`);
     }
-  }, [needsPayment, order.id, router]);
+  }, [needsPayment, isGatewayReturn, order.id, router]);
 
-  if (!needsPayment) {
-    return null;
-  }
-
-  const brand = order.paymentMethod === "ESEWA" ? ESEWA : KHALTI;
-
-  function handleWalletContinue(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const digits = walletNumber
-      .replace(NON_DIGITS, "")
-      .replace(COUNTRY_CODE, "");
-
-    if (digits.length !== 10) {
-      setError("Enter a valid 10-digit wallet number");
+  useEffect(() => {
+    if (!isGatewayReturn || lastVerifyAttempt.current === verifyAttempt) {
       return;
     }
-
-    setError("");
-    setStep("otp");
-  }
-
-  async function handlePay(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!OTP_CODE.test(otp)) {
-      setError("Enter the 4-digit verification code");
-      return;
-    }
-
+    lastVerifyAttempt.current = verifyAttempt;
+    setPhase("verifying");
     setError("");
 
-    await new Promise((resolve) => setTimeout(resolve, 700));
-    await completePayment.mutateAsync(
-      { orderId, walletNumber },
-      {
-        onSuccess: () => {
-          utils.orders.list.invalidate();
-          router.push(`/orders?new=${order.id}`);
-        },
-        onError: (err) => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const query = new URLSearchParams(searchParams.toString());
+        query.set("orderId", order.id);
+        const response = await fetch(
+          `/api/checkout-session?${query.toString()}`
+        );
+        const body = (await response.json()) as GatewayBody;
+        if (cancelled) {
+          return;
+        }
+        if (body.status === "success") {
+          await utils.orders.list.invalidate();
+          router.replace(`/orders?new=${order.id}`);
+          return;
+        }
+        if (body.status === "pending") {
           setError(
-            err instanceof Error
-              ? err.message
-              : "Payment failed. Please try again."
+            "The gateway hasn't confirmed this payment yet. Give it a moment, then check again."
           );
-        },
+        } else {
+          setError(
+            typeof body.message === "string"
+              ? body.message
+              : "Payment verification failed."
+          );
+        }
+        setPhase("failed");
+      } catch {
+        if (cancelled) {
+          return;
+        }
+        setError(
+          "Could not verify the payment. Check your connection and try again."
+        );
+        setPhase("failed");
       }
-    );
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isGatewayReturn, verifyAttempt, searchParams, order.id, utils, router]);
+
+  useEffect(() => {
+    if (esewaRedirect) {
+      formRef.current?.submit();
+    }
+  }, [esewaRedirect]);
+
+  async function handleInitiate() {
+    setError("");
+    setPhase("redirecting");
+    try {
+      const response = await fetch("/api/checkout-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: order.id }),
+      });
+      const body = (await response.json()) as GatewayBody & {
+        paymentUrl?: string;
+        esewaConfig?: Record<string, string>;
+        khaltiPaymentUrl?: string;
+      };
+      if (!response.ok) {
+        throw new Error(
+          typeof body.message === "string"
+            ? body.message
+            : "Could not start the payment."
+        );
+      }
+      if (typeof body.khaltiPaymentUrl === "string") {
+        window.location.href = body.khaltiPaymentUrl;
+        return;
+      }
+      if (typeof body.paymentUrl === "string" && body.esewaConfig) {
+        setEsewaRedirect({
+          paymentUrl: body.paymentUrl,
+          fields: body.esewaConfig,
+        });
+        return;
+      }
+      throw new Error("The payment gateway returned an unexpected response.");
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Could not start the payment."
+      );
+      setPhase("init");
+    }
+  }
+
+  if (!needsPayment && !isGatewayReturn) {
+    return null;
   }
 
   return (
@@ -128,10 +204,11 @@ export function PayClient({ orderId }: { orderId: string }) {
       </header>
 
       <main className="mx-auto w-full max-w-md flex-1 px-4 py-8">
-        <div className="mb-4 rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2 text-amber-800 text-xs dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
-          Demo gateway — no real money moves. Use any wallet number and any
-          4-digit code.
-        </div>
+        {!!declined && phase === "init" && (
+          <div className="mb-4 rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2 text-amber-800 text-xs dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+            The {brand.name} payment wasn&apos;t completed. You can try again.
+          </div>
+        )}
 
         <div className="overflow-hidden rounded-2xl border bg-card shadow-lg">
           <div className={`bg-linear-to-r ${brand.header} p-6 text-white`}>
@@ -153,87 +230,93 @@ export function PayClient({ orderId }: { orderId: string }) {
             </p>
           </div>
 
-          {step === "wallet" ? (
-            <form onSubmit={handleWalletContinue} className="p-6">
-              <label htmlFor="wallet-number" className="font-medium text-sm">
-                {brand.name} wallet number
-              </label>
-              <Input
-                id="wallet-number"
-                inputMode="tel"
-                autoComplete="tel"
-                placeholder="98XXXXXXXX"
-                value={walletNumber}
-                onChange={(event) => setWalletNumber(event.target.value)}
-                className="mt-2 h-11"
-              />
-              <p className="mt-2 text-muted-foreground text-xs">
-                Enter the mobile number linked to your {brand.name} account.
+          {phase === "init" && (
+            <div className="p-6">
+              <p className="text-muted-foreground text-sm">
+                You&apos;ll continue to {brand.name} to authorize this payment.
+                Nothing is charged until you confirm on the next screen.
               </p>
               {!!error && (
-                <p className="mt-2 font-medium text-destructive text-xs">
-                  {error}
-                </p>
-              )}
-              <Button type="submit" className="mt-4 h-11 w-full">
-                Continue
-              </Button>
-            </form>
-          ) : (
-            <form onSubmit={handlePay} className="p-6">
-              <p className="text-sm">
-                Enter the 4-digit code sent to{" "}
-                <span className="font-medium">{maskWallet(walletNumber)}</span>
-              </p>
-              <Input
-                inputMode="numeric"
-                maxLength={4}
-                placeholder="••••"
-                aria-label="4-digit verification code"
-                value={otp}
-                onChange={(event) =>
-                  setOtp(event.target.value.replace(/\D/g, ""))
-                }
-                className="mt-3 h-12 text-center font-bold text-xl tracking-[0.5em]"
-              />
-              <p className="mt-2 text-muted-foreground text-xs">
-                Demo: enter any 4 digits to simulate the OTP.
-              </p>
-              {!!error && (
-                <p className="mt-2 font-medium text-destructive text-xs">
+                <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 font-medium text-destructive text-xs">
                   {error}
                 </p>
               )}
               <Button
-                type="submit"
+                type="button"
+                onClick={handleInitiate}
                 className="mt-4 h-11 w-full"
-                disabled={completePayment.isPending}
               >
-                {completePayment.isPending ? (
-                  <Spinner />
-                ) : (
-                  <ShieldCheckIcon className="size-4" />
-                )}
+                <ShieldCheckIcon className="size-4" />
                 Pay Rs. {order.totalAmount.toLocaleString()}
               </Button>
-              <button
+            </div>
+          )}
+
+          {(phase === "redirecting" || phase === "verifying") && (
+            <div className="flex flex-col items-center gap-3 p-6 text-center">
+              <Spinner />
+              <p className="text-muted-foreground text-sm">
+                {phase === "redirecting"
+                  ? `Redirecting to ${brand.name}...`
+                  : "Verifying your payment..."}
+              </p>
+            </div>
+          )}
+
+          {phase === "failed" && (
+            <div className="p-6">
+              <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2">
+                <CircleAlertIcon className="mt-0.5 size-4 shrink-0 text-destructive" />
+                <p className="font-medium text-destructive text-xs">{error}</p>
+              </div>
+              <Button
                 type="button"
-                onClick={() => {
-                  setStep("wallet");
-                  setError("");
-                }}
-                className="mt-3 w-full text-center text-muted-foreground text-xs transition-colors hover:text-foreground"
+                onClick={() => setVerifyAttempt((attempt) => attempt + 1)}
+                className="mt-4 h-11 w-full"
               >
-                Use a different wallet number
-              </button>
-            </form>
+                <RefreshCwIcon className="size-4" />
+                Check again
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-2 h-11 w-full"
+                onClick={() => {
+                  lastVerifyAttempt.current = -1;
+                  setError("");
+                  setPhase("init");
+                  router.replace(`/checkout/pay/${order.id}`);
+                }}
+              >
+                Start a new payment
+              </Button>
+              <Link
+                href={`/orders?new=${order.id}`}
+                className="mt-3 block text-center text-muted-foreground text-xs transition-colors hover:text-foreground"
+              >
+                View my orders
+              </Link>
+            </div>
           )}
         </div>
 
         <p className="mt-4 text-center text-muted-foreground text-xs">
-          Powered by {brand.name} (demo) · You will not be charged
+          Powered by {brand.name} · You are only charged after you confirm.
         </p>
       </main>
+
+      {!!esewaRedirect && (
+        <form
+          ref={formRef}
+          method="POST"
+          action={esewaRedirect.paymentUrl}
+          className="hidden"
+        >
+          {Object.entries(esewaRedirect.fields).map(([name, value]) => (
+            <input key={name} type="hidden" name={name} value={value} />
+          ))}
+        </form>
+      )}
     </div>
   );
 }

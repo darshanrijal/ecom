@@ -288,16 +288,13 @@ interface OrdersClientPageProps {
 
 export function OrdersClientPage({ newOrderId }: OrdersClientPageProps) {
   const session = authClient.useSession();
-  const isLoggedIn = !!session.data?.user;
   const guestOrderIds = useOrderStore((state) => state.orderIds);
-  const { data: userOrderIds } = trpc.orders.getAllOrderIds.useQuery(
-    undefined,
-    { enabled: isLoggedIn }
-  );
   const [dismissed, setDismissed] = useState(false);
 
+  // account orders come from the session server-side; guest orders are passed
+  // by their localStorage ids so they stay visible after signing in
   const { data, isPending } = trpc.orders.list.useQuery({
-    orderIds: userOrderIds ?? guestOrderIds,
+    orderIds: guestOrderIds,
   });
 
   const loading = session.isPending || isPending;

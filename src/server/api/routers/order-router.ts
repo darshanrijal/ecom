@@ -1,7 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { createId } from "@paralleldrive/cuid2";
 import {
-  completePaymentSchema,
   createOrderSchema,
   listOrdersSchema,
   orderByIdSchema,
@@ -161,55 +159,6 @@ export const orderRouter = router({
 
         return serializeOrder(order);
       });
-    }),
-
-  completePayment: publicProcedure
-    .input(completePaymentSchema)
-    .mutation(async ({ ctx, input }) => {
-      const order = await ctx.db.order.findUnique({
-        where: { id: input.orderId },
-        include: orderInclude,
-      });
-
-      if (!order) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Order not found" });
-      }
-
-      if (order.userId && order.userId !== ctx.session?.user?.id) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "This order belongs to another account",
-        });
-      }
-
-      if (order.status === "PAID") {
-        return serializeOrder(order);
-      }
-
-      if (order.paymentMethod === "COD") {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "This order is paid on delivery",
-        });
-      }
-
-      if (order.status !== "PENDING") {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "This order can no longer be paid",
-        });
-      }
-
-      const prefix = order.paymentMethod === "ESEWA" ? "ESWA" : "KHALT";
-      const paymentRef = `${prefix}-${createId().slice(0, 12).toUpperCase()}`;
-
-      const updated = await ctx.db.order.update({
-        where: { id: order.id },
-        data: { status: "PAID", paidAt: new Date(), paymentRef },
-        include: orderInclude,
-      });
-
-      return serializeOrder(updated);
     }),
 
   getById: publicProcedure

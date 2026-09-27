@@ -14,8 +14,13 @@
  */
 
 import "./admin-env";
+import { createHmac } from "node:crypto";
 import { createId } from "@paralleldrive/cuid2";
 import SuperJSON from "superjson";
+import {
+  GET as checkoutGet,
+  POST as checkoutPost,
+} from "@/app/api/checkout-session/route";
 import { db } from "@/lib/prisma";
 import { createCaller } from "@/server/api/root";
 import type { createTRPCContext } from "@/server/api/trpc";
@@ -75,6 +80,50 @@ async function checkFails(name: string, run: () => unknown, expect?: string) {
 /** Deserialize exactly like the browser would. */
 function overTheWire<T>(value: T): T {
   return SuperJSON.parse(SuperJSON.stringify(value)) as T;
+}
+
+async function postCheckoutSession(body: unknown) {
+  const response = await checkoutPost(
+    new Request("http://localhost/api/checkout-session", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    })
+  );
+  return { response, body: (await response.json()) as Record<string, any> };
+}
+
+async function getCheckoutSession(params: Record<string, string>) {
+  const query = new URLSearchParams(params).toString();
+  const response = await checkoutGet(
+    new Request(`http://localhost/api/checkout-session?${query}`)
+  );
+  return { response, body: (await response.json()) as Record<string, any> };
+}
+
+function base64Json(value: unknown) {
+  return Buffer.from(JSON.stringify(value), "utf-8").toString("base64");
+}
+
+/** Route handler must answer with `wantStatus` (and optional body.status). */
+async function checkHttp(
+  name: string,
+  run: () => Promise<{ response: Response; body: Record<string, any> }>,
+  wantStatus: number,
+  wantBodyStatus?: string
+) {
+  await check(name, async () => {
+    const { response, body } = await run();
+    if (response.status !== wantStatus) {
+      throw new Error(
+        `HTTP ${response.status} (${JSON.stringify(body)}), want ${wantStatus}`
+      );
+    }
+    if (wantBodyStatus !== undefined && body.status !== wantBodyStatus) {
+      throw new Error(`body.status ${body.status}, want ${wantBodyStatus}`);
+    }
+    return body;
+  });
 }
 
 async function main() {
@@ -694,10 +743,39 @@ async function main() {
       "[FORBIDDEN]"
     );
 
-    await checkFails(
-      "orders.completePayment (COD order -> BAD_REQUEST)",
-      () => authed.orders.completePayment({ orderId: codOrderId }),
-      "[BAD_REQUEST]"
+    let guestCodOrderId = "";
+    await check("orders.create (guest COD order)", async () => {
+      const order = await anon.orders.create({
+        items: [{ skuId: skuWithStock.id, quantity: 1 }],
+        shippingInfo,
+        paymentMethod: "COD",
+      });
+      guestCodOrderId = order.id;
+      createdOrderIds.push(order.id);
+      return order;
+    });
+
+    await checkHttp(
+      "checkout-session POST (COD order -> BAD_REQUEST)",
+      () => postCheckoutSession({ orderId: guestCodOrderId }),
+      400,
+      "error"
+    );
+
+    await check(
+      "orders.list (signed-in caller sees own + guest orders)",
+      async () => {
+        const orders = await authed.orders.list({
+          orderIds: [guestCodOrderId],
+        });
+        if (!orders.some((order) => order.id === codOrderId)) {
+          throw new Error("own account order missing from list");
+        }
+        if (!orders.some((order) => order.id === guestCodOrderId)) {
+          throw new Error("guest order missing for a signed-in caller");
+        }
+        return orders;
+      }
     );
 
     let esewaOrderId = "";
@@ -715,44 +793,202 @@ async function main() {
       return order;
     });
 
-    await checkFails(
-      "orders.completePayment (anonymous -> FORBIDDEN)",
-      () => anon.orders.completePayment({ orderId: esewaOrderId }),
-      "[FORBIDDEN]"
+    await checkHttp(
+      "checkout-session POST (someone else's order -> FORBIDDEN)",
+      () => postCheckoutSession({ orderId: esewaOrderId }),
+      403,
+      "error"
     );
 
-    await check("orders.completePayment (eSewa -> PAID with ref)", async () => {
-      const wire = overTheWire(
-        await authed.orders.completePayment({
-          orderId: esewaOrderId,
-          walletNumber: "9800000000",
-        })
-      );
-      if (wire.status !== "PAID") {
-        throw new Error(`status ${wire.status}, want PAID`);
-      }
-      if (!wire.paidAt) {
-        throw new Error("paidAt missing");
-      }
-      if (typeof wire.paymentRef !== "string" || !wire.paymentRef) {
-        throw new Error("paymentRef missing");
-      }
-      if (!wire.paymentRef.startsWith("ESWA-")) {
-        throw new Error(`paymentRef ${wire.paymentRef}, want ESWA- prefix`);
-      }
-      return wire;
+    await checkHttp(
+      "checkout-session GET (user order, no session -> reaches verification)",
+      () => getCheckoutSession({ orderId: esewaOrderId }),
+      400,
+      "error"
+    );
+
+    let guestEsewaOrderId = "";
+    await check("orders.create (guest eSewa order)", async () => {
+      const order = await anon.orders.create({
+        items: [{ skuId: skuWithStock.id, quantity: 1 }],
+        shippingInfo,
+        paymentMethod: "ESEWA",
+      });
+      guestEsewaOrderId = order.id;
+      createdOrderIds.push(order.id);
+      return order;
     });
 
+    let firstEsewaUuid = "";
     await check(
-      "orders.completePayment (already PAID is idempotent)",
+      "checkout-session POST (eSewa -> HMAC-signed config)",
       async () => {
-        const wire = await authed.orders.completePayment({
-          orderId: esewaOrderId,
+        const { response, body } = await postCheckoutSession({
+          orderId: guestEsewaOrderId,
         });
-        if (wire.status !== "PAID") {
-          throw new Error(`status ${wire.status}, want PAID`);
+        if (response.status !== 200 || body.status !== "success") {
+          throw new Error(`HTTP ${response.status}: ${JSON.stringify(body)}`);
         }
-        return wire;
+        const config = body.esewaConfig;
+        if (!config || typeof config.signature !== "string") {
+          throw new Error("esewaConfig.signature missing");
+        }
+        const secretKey = process.env.ESEWA_SECRET_KEY;
+        const merchantCode = process.env.ESEWA_MERCHANT_CODE;
+        if (!secretKey || !merchantCode) {
+          throw new Error("ESEWA_* vars are missing from .env");
+        }
+        if (config.product_code !== merchantCode) {
+          throw new Error(`product_code ${config.product_code}`);
+        }
+        const signedMessage = `total_amount=${config.total_amount},transaction_uuid=${config.transaction_uuid},product_code=${config.product_code}`;
+        const expected = createHmac("sha256", secretKey)
+          .update(signedMessage)
+          .digest("base64");
+        if (config.signature !== expected) {
+          throw new Error(`signature ${config.signature}, want ${expected}`);
+        }
+        if (typeof body.paymentUrl !== "string") {
+          throw new Error("paymentUrl missing");
+        }
+        const row = await db.order.findUnique({
+          where: { id: guestEsewaOrderId },
+          select: { esewaTransactionUuid: true },
+        });
+        if (row?.esewaTransactionUuid !== config.transaction_uuid) {
+          throw new Error("transaction uuid was not persisted on the order");
+        }
+        firstEsewaUuid = config.transaction_uuid;
+        return body;
+      }
+    );
+
+    await check(
+      "checkout-session POST (eSewa retry issues a fresh uuid)",
+      async () => {
+        const { body } = await postCheckoutSession({
+          orderId: guestEsewaOrderId,
+        });
+        const uuid = body.esewaConfig?.transaction_uuid;
+        if (typeof uuid !== "string" || uuid === firstEsewaUuid) {
+          throw new Error(
+            `retry uuid ${uuid}, want a fresh one (issued ${firstEsewaUuid})`
+          );
+        }
+        const row = await db.order.findUnique({
+          where: { id: guestEsewaOrderId },
+          select: { esewaTransactionUuid: true },
+        });
+        if (row?.esewaTransactionUuid !== uuid) {
+          throw new Error("the fresh uuid was not persisted on the order");
+        }
+        firstEsewaUuid = uuid;
+        return body;
+      }
+    );
+
+    await checkHttp(
+      "checkout-session GET (missing orderId -> 400)",
+      () => getCheckoutSession({}),
+      400,
+      "error"
+    );
+
+    await checkHttp(
+      "checkout-session GET (invalid eSewa payload -> 400)",
+      () =>
+        getCheckoutSession({
+          orderId: guestEsewaOrderId,
+          data: Buffer.from("not-json", "utf-8").toString("base64"),
+        }),
+      400,
+      "error"
+    );
+
+    await checkHttp(
+      "checkout-session GET (eSewa not COMPLETE -> pending)",
+      () =>
+        getCheckoutSession({
+          orderId: guestEsewaOrderId,
+          data: base64Json({
+            status: "PENDING",
+            transaction_uuid: "irrelevant",
+            total_amount: "100",
+          }),
+        }),
+      200,
+      "pending"
+    );
+
+    await checkHttp(
+      "checkout-session GET (foreign transaction uuid -> 400)",
+      () =>
+        getCheckoutSession({
+          orderId: guestEsewaOrderId,
+          data: base64Json({
+            status: "COMPLETE",
+            transaction_uuid: createId(),
+            total_amount: "100",
+            ref_id: "REF-1",
+          }),
+        }),
+      400,
+      "error"
+    );
+
+    await checkHttp(
+      "checkout-session GET (amount mismatch -> 400)",
+      async () => {
+        const row = await db.order.findUnique({
+          where: { id: guestEsewaOrderId },
+          select: { esewaTransactionUuid: true },
+        });
+        return getCheckoutSession({
+          orderId: guestEsewaOrderId,
+          data: base64Json({
+            status: "COMPLETE",
+            transaction_uuid: row?.esewaTransactionUuid,
+            total_amount: "1.00",
+            ref_id: "REF-1",
+          }),
+        });
+      },
+      400,
+      "error"
+    );
+
+    await check(
+      "checkout-session GET (fabricated COMPLETE data stays unpaid)",
+      async () => {
+        const row = await db.order.findUnique({
+          where: { id: guestEsewaOrderId },
+          select: { esewaTransactionUuid: true, totalAmount: true },
+        });
+        if (!row?.esewaTransactionUuid) {
+          throw new Error("transaction uuid missing on the order");
+        }
+        const { body } = await getCheckoutSession({
+          orderId: guestEsewaOrderId,
+          data: base64Json({
+            status: "COMPLETE",
+            transaction_uuid: row.esewaTransactionUuid,
+            total_amount: String(row.totalAmount.toNumber()),
+            ref_id: "REF-FABRICATED",
+          }),
+        });
+        if (body.status === "success") {
+          throw new Error("unverified data marked the order as paid");
+        }
+        const after = await db.order.findUnique({
+          where: { id: guestEsewaOrderId },
+          select: { status: true },
+        });
+        if (after?.status !== "PENDING") {
+          throw new Error(
+            `order moved to ${after?.status} without gateway confirmation`
+          );
+        }
+        return body;
       }
     );
 
@@ -791,21 +1027,80 @@ async function main() {
       anon.orders.getById({ orderId: guestOrderId })
     );
 
-    await check("orders.completePayment (guest Khalti -> PAID)", async () => {
-      const wire = await anon.orders.completePayment({
-        orderId: guestOrderId,
-        walletNumber: "9800000000",
+    await check(
+      "checkout-session POST (Khalti initiate or not configured)",
+      async () => {
+        const { response, body } = await postCheckoutSession({
+          orderId: guestOrderId,
+        });
+        if (response.ok) {
+          if (typeof body.khaltiPaymentUrl !== "string") {
+            throw new Error("khaltiPaymentUrl missing");
+          }
+          return body;
+        }
+        if (
+          response.status === 503 &&
+          typeof body.message === "string" &&
+          body.message.includes("not configured")
+        ) {
+          return body;
+        }
+        throw new Error(`HTTP ${response.status}: ${JSON.stringify(body)}`);
+      }
+    );
+
+    await checkHttp(
+      "checkout-session GET (Khalti return without pidx -> 400)",
+      () => getCheckoutSession({ orderId: guestOrderId }),
+      400,
+      "error"
+    );
+
+    await check(
+      "checkout-session GET (fake Khalti pidx stays unpaid)",
+      async () => {
+        const { body } = await getCheckoutSession({
+          orderId: guestOrderId,
+          pidx: `fake-${createId()}`,
+        });
+        if (body.status === "success") {
+          throw new Error("an unverified pidx marked the order as paid");
+        }
+        return body;
+      }
+    );
+
+    await check(
+      "admin.updateOrderStatus (guest eSewa order -> PAID)",
+      async () => {
+        const out = await admin.admin.updateOrderStatus({
+          orderId: guestEsewaOrderId,
+          status: "PAID",
+        });
+        if (out.status !== "PAID" || !out.paidAt) {
+          throw new Error(`status ${out.status}, paidAt ${out.paidAt}`);
+        }
+        return out;
+      }
+    );
+
+    await checkHttp(
+      "checkout-session GET (already PAID order -> idempotent success)",
+      () => getCheckoutSession({ orderId: guestEsewaOrderId }),
+      200,
+      "success"
+    );
+
+    await check("admin.updateOrderStatus (eSewa order -> PAID)", async () => {
+      const out = await admin.admin.updateOrderStatus({
+        orderId: esewaOrderId,
+        status: "PAID",
       });
-      if (wire.status !== "PAID") {
-        throw new Error(`status ${wire.status}, want PAID`);
+      if (out.status !== "PAID" || !out.paidAt) {
+        throw new Error(`status ${out.status}, paidAt ${out.paidAt}`);
       }
-      if (
-        typeof wire.paymentRef !== "string" ||
-        !wire.paymentRef.startsWith("KHALT-")
-      ) {
-        throw new Error(`paymentRef ${wire.paymentRef}, want KHALT- prefix`);
-      }
-      return wire;
+      return out;
     });
 
     // ---- admin panel: authorization ---------------------------------------

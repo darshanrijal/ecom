@@ -225,6 +225,10 @@ model Order {
   paidAt        DateTime?
   paymentRef    String?
 
+  // gateway transaction ids — unique so a receipt can never be replayed
+  esewaTransactionUuid String? @unique
+  khaltiPidx           String? @unique
+
   user  User?       @relation(fields: [userId], references: [id])
   items OrderItem[]
 

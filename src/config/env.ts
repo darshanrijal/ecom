@@ -11,6 +11,11 @@ export const env = createEnv({
     UPLOADTHING_TOKEN: z.string(),
     UPLOADTHING_SECRET_KEY: z.string(),
     ADMIN_EMAILS: z.string().optional(),
+    ESEWA_MERCHANT_CODE: z.string().optional(),
+    ESEWA_SECRET_KEY: z.string().optional(),
+    ESEWA_ENV: z.enum(["sandbox", "production"]).optional(),
+    KHALTI_SECRET_KEY: z.string().optional(),
+    KHALTI_ENV: z.enum(["sandbox", "production"]).optional(),
   },
   client: {
     NEXT_PUBLIC_BASE_URL: z.url(),

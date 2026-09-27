@@ -63,11 +63,6 @@ export const createOrderSchema = z.object({
   paymentMethod: paymentMethodSchema,
 });
 
-export const completePaymentSchema = z.object({
-  orderId: z.cuid2(),
-  walletNumber: z.string().trim().max(20).optional(),
-});
-
 export const orderByIdSchema = z.object({
   orderId: z.cuid2(),
 });
