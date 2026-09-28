@@ -4,6 +4,7 @@ import Link from "next/link";
 import { AddToCartButton } from "./add-to-cart-btn";
 import { ProductImage } from "./product-image";
 import { StockBadge } from "./stock-badge";
+import { AddToFavoriteButton } from "./add-to-favorite-button";
 
 interface ProductCardProps {
   product: RouterOutputs["products"]["getAllProducts"]["products"][number];
@@ -48,6 +49,9 @@ export const ProductCard = ({
         className
       )}
     >
+      <div className="absolute top-2 right-2 z-30">
+        <AddToFavoriteButton productId={product.id} />
+      </div>
       <div
         className={cn(
           "relative aspect-square w-full overflow-hidden bg-muted",

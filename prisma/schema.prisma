@@ -8,19 +8,20 @@ datasource db {
 }
 
 model User {
-  id            String    @id
+  id            String     @id
   name          String
   email         String
-  emailVerified Boolean   @default(false)
+  emailVerified Boolean    @default(false)
   image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
   sessions      Session[]
   accounts      Account[]
   cart          Cart?
   orders        Order[]
   addresses     Address[]
   reviews       Review[]
+  favorite      Favorite[]
 
   @@unique([email])
   @@map("user")
@@ -115,6 +116,7 @@ model Product {
   options     ProductOption[]
   productSKUs ProductSKU[]
   reviews     Review[]
+  inFavorites Favorite[]
 
   @@index([slug])
   @@index([categoryId])
@@ -260,8 +262,20 @@ model OrderItem {
   @@map("order_items")
 }
 
+model Favorite {
+  id        String @id @default(cuid(2))
+  userId    String
+  productId String
+
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  favoriatedProduct Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, userId])
+  @@index([userId])
+}
+
 model Review {
-  id        String   @id @default(cuid(2))
+  id        String  @id @default(cuid(2))
   rating    Int // 1-5 stars
   comment   String?
   userId    String

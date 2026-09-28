@@ -27,6 +27,15 @@
       "linter": {
         "enabled": false
       }
+    },
+    {
+      "includes": [".agents/**"],
+      "linter": {
+        "enabled": false
+      },
+      "formatter": {
+        "enabled": false
+      }
     }
   ]
 }

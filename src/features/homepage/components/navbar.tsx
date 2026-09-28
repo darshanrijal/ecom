@@ -17,11 +17,18 @@ import { CartButton } from "@/features/cart/components/cartbutton";
 import { ChevronDownIcon, MenuIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { getCurrentSession } from "@/lib/auth";
 import { getNavCategories } from "./footer";
-import { SearchProductsButton } from "./search-products-button";
+import { SearchBar } from "./search-bar";
 import { ModeToggle } from "@/components/mode-toggle";
 
-const navbarLinks = [
+interface NavbarLink {
+  label: string;
+  url: string;
+  authOnly?: boolean;
+}
+
+const navbarLinks: NavbarLink[] = [
   {
     label: "Shop",
     url: "/products",
@@ -34,14 +41,24 @@ const navbarLinks = [
     label: "Orders",
     url: "/orders",
   },
+  {
+    label: "Favorites",
+    url: "/favorites",
+    authOnly: true,
+  },
 ];
 
 export const Navbar = async () => {
-  const categories = await getNavCategories();
+  const [categories, session] = await Promise.all([
+    getNavCategories(),
+    getCurrentSession(),
+  ]);
+
+  const links = navbarLinks.filter((link) => !link.authOnly || !!session?.user);
 
   return (
-    <nav className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-3 px-4 sm:h-20 sm:px-6 lg:px-8">
+    <nav className="sticky top-0 z-50 mb-4 w-full border-b bg-background/80 backdrop-blur-xl">
+      <div className="mx-auto flex h-14 w-full max-w-7xl items-center justify-between gap-3 px-4 sm:h-16 sm:px-6 lg:px-8">
         {/* Mobile menu */}
         <div className="shrink-0 md:hidden">
           <Sheet>
@@ -64,7 +81,7 @@ export const Navbar = async () => {
               </SheetHeader>
 
               <div className="flex flex-col gap-1 overflow-y-auto">
-                {navbarLinks.map((link) => (
+                {links.map((link) => (
                   <Button
                     key={link.label}
                     variant="ghost"
@@ -111,13 +128,32 @@ export const Navbar = async () => {
           />
         </Link>
 
-        {/* Desktop navigation */}
-        <div className="hidden items-center rounded-full border bg-muted/60 p-1 shadow-sm md:flex">
-          {navbarLinks.map((link) => (
+        {/* Search */}
+        <SearchBar />
+
+        {/* Actions */}
+        <div className="flex shrink-0 items-center gap-2">
+          <ModeToggle />
+
+          <div className="shrink-0">
+            <UserButton />
+          </div>
+
+          {/* Cart */}
+          <div className="shrink-0 rounded-full border bg-background p-1 shadow-sm transition-shadow hover:shadow-md">
+            <CartButton />
+          </div>
+        </div>
+      </div>
+
+      {/* Secondary row — department links (desktop) */}
+      <div className="hidden border-border/60 border-t md:block">
+        <div className="mx-auto flex h-10 w-full max-w-7xl items-center gap-1 px-4 sm:px-6 lg:px-8">
+          {links.map((link) => (
             <Link
               key={link.label}
               href={link.url}
-              className="rounded-full px-5 py-2 font-medium text-muted-foreground text-sm transition-all duration-200 hover:bg-background hover:text-foreground hover:shadow-sm"
+              className="rounded-full px-3.5 py-1.5 font-medium text-muted-foreground text-sm transition-colors hover:bg-muted/60 hover:text-foreground"
             >
               {link.label}
             </Link>
@@ -128,7 +164,7 @@ export const Navbar = async () => {
               render={
                 <button
                   type="button"
-                  className="flex items-center gap-1 rounded-full px-5 py-2 font-medium text-muted-foreground text-sm transition-all duration-200 hover:bg-background hover:text-foreground hover:shadow-sm"
+                  className="flex items-center gap-1 rounded-full px-3.5 py-1.5 font-medium text-muted-foreground text-sm transition-colors hover:bg-muted/60 hover:text-foreground"
                 >
                   Categories
                   <ChevronDownIcon className="size-3.5" />
@@ -136,7 +172,7 @@ export const Navbar = async () => {
               }
             />
 
-            <DropdownMenuContent align="center" className="max-h-80 w-56">
+            <DropdownMenuContent align="start" className="max-h-80 w-56">
               {categories.map((category) => (
                 <DropdownMenuItem
                   key={category.id}
@@ -149,21 +185,6 @@ export const Navbar = async () => {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
-
-        {/* Actions */}
-        <div className="flex min-w-0 shrink-0 items-center gap-2">
-          <SearchProductsButton />
-          <ModeToggle />
-
-          <div className="shrink-0">
-            <UserButton />
-          </div>
-
-          {/* Cart */}
-          <div className="shrink-0 rounded-full border bg-background p-1 shadow-sm transition-shadow hover:shadow-md">
-            <CartButton />
-          </div>
         </div>
       </div>
     </nav>
