@@ -1,7 +1,7 @@
-import { preventUnauthorized } from "@/lib/auth";
+import { getCurrentSession, preventUnauthorized } from "@/lib/auth";
 import { isAdminEmail } from "@/lib/admin";
 import { createUploadthing, type FileRouter } from "uploadthing/next";
-import { UploadThingError } from "uploadthing/server";
+import { UploadThingError, UTApi } from "uploadthing/server";
 
 const f = createUploadthing();
 
@@ -30,6 +30,30 @@ export const appFileRouter = {
       return { userId: user.id };
     })
     .onUploadComplete(({ metadata, file }) => {
+      return { uploadedBy: metadata.userId, url: file.ufsUrl };
+    }),
+
+  avatar: f({
+    image: {
+      maxFileSize: "2MB",
+      maxFileCount: 1,
+    },
+  })
+    .middleware(async () => {
+      const { session, user } = await getCurrentSession();
+
+      if (!session || !user) {
+        throw new UploadThingError("Unauthorized");
+      }
+
+      return { userId: user.id, userImage: user.image };
+    })
+    .onUploadComplete(async ({ metadata, file }) => {
+      const existingUserImageUrl = metadata.userImage;
+      const existingImageKey =
+        existingUserImageUrl?.split("https://qq6j8iag8y.ufs.sh/f/")[1] ?? "";
+
+      await new UTApi().deleteFiles([existingImageKey]);
       return { uploadedBy: metadata.userId, url: file.ufsUrl };
     }),
 } satisfies FileRouter;

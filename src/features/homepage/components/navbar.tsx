@@ -148,7 +148,7 @@ export const Navbar = async () => {
 
       {/* Secondary row — department links (desktop) */}
       <div className="hidden border-border/60 border-t md:block">
-        <div className="mx-auto flex h-10 w-full max-w-7xl items-center gap-1 px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex h-10 w-full max-w-7xl items-center justify-center gap-1 px-4 sm:px-6 lg:px-8">
           {links.map((link) => (
             <Link
               key={link.label}

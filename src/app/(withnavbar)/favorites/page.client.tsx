@@ -5,8 +5,7 @@ import type { ReactNode } from "react";
 import { trpc } from "@/__rpc/client";
 import { Button } from "@/components/ui/button";
 import { ProductCard } from "@/features/products/components/product-card";
-import { ProductCardSkeleton } from "@/features/products/components/product-card-skeleton";
-import { CircleAlertIcon, HeartIcon } from "lucide-react";
+import { HeartIcon } from "lucide-react";
 import Link from "next/link";
 
 function PageShell({
@@ -68,33 +67,7 @@ function PromptCard({
 }
 
 export function FavoritesClientPage() {
-  const [data, { isPending, isError, refetch }] =
-    trpc.favorite.list.useSuspenseQuery();
-
-  if (isPending) {
-    return (
-      <PageShell subtitle="Loading your favorites...">
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {["sk1", "sk2", "sk3", "sk4"].map((id) => (
-            <ProductCardSkeleton key={id} />
-          ))}
-        </div>
-      </PageShell>
-    );
-  }
-
-  if (isError) {
-    return (
-      <PageShell>
-        <PromptCard
-          icon={<CircleAlertIcon className="size-7 text-muted-foreground" />}
-          title="Couldn't load your favorites"
-          description="Something went wrong while loading this page. Please try again."
-          action={<Button onClick={() => refetch()}>Try again</Button>}
-        />
-      </PageShell>
-    );
-  }
+  const [data] = trpc.favorite.list.useSuspenseQuery();
 
   const favorites = data;
 
