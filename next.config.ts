@@ -10,6 +10,10 @@ const nextConfig: NextConfig = {
         port: "",
         pathname: "/f/**",
       },
+      {
+        protocol: "https",
+        hostname: "*",
+      },
     ],
   },
 };
