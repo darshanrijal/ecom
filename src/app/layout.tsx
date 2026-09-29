@@ -5,6 +5,7 @@ import "./globals.css";
 import Providers from "./providers";
 import { CreateCart } from "@/components/create-cart";
 import TopLoader from "nextjs-toploader";
+import { Toaster } from "@/components/ui/toast";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -55,6 +56,7 @@ export default function RootLayout({
         />
         <Providers>
           {children}
+          <Toaster />
           <CreateCart />
         </Providers>
       </body>

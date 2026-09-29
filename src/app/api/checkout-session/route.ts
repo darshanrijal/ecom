@@ -170,7 +170,11 @@ async function completeOrderPayment(
   data: { paymentRef: string; khaltiPidx?: string }
 ) {
   const completed = await ctx.db.order.updateMany({
-    where: { id: order.id, status: "PENDING", paidAt: null },
+    where: {
+      id: order.id,
+      status: { in: ["PENDING", "ASSIGNED"] },
+      paidAt: null,
+    },
     data: { status: "PAID", paidAt: new Date(), ...data },
   });
   if (completed.count === 0) {
@@ -382,7 +386,7 @@ export async function POST(request: Request) {
     if (order.status === "PAID") {
       return fail("This order is already paid", 400);
     }
-    if (order.status !== "PENDING") {
+    if (order.status !== "PENDING" && order.status !== "ASSIGNED") {
       return fail("This order can no longer be paid", 400);
     }
     if (order.paymentMethod === "ESEWA") {
@@ -417,7 +421,7 @@ export async function GET(request: Request) {
     if (order.status === "PAID") {
       return alreadyProcessed();
     }
-    if (order.status !== "PENDING") {
+    if (order.status !== "PENDING" && order.status !== "ASSIGNED") {
       return fail("This order can no longer be paid", 400);
     }
     if (order.paymentMethod === "ESEWA") {

@@ -24,6 +24,8 @@ const STATUS_STYLES: Record<string, string> = {
   PENDING: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
   PAID: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
   PROCESSING: "bg-blue-500/15 text-blue-700 dark:text-blue-400",
+  ASSIGNED: "bg-teal-500/15 text-teal-700 dark:text-teal-400",
+  OUT_FOR_DELIVERY: "bg-orange-500/15 text-orange-700 dark:text-orange-400",
   SHIPPED: "bg-indigo-500/15 text-indigo-700 dark:text-indigo-400",
   DELIVERED: "bg-emerald-600/15 text-emerald-800 dark:text-emerald-300",
   CANCELLED: "bg-red-500/15 text-red-700 dark:text-red-400",
@@ -35,6 +37,13 @@ const PAYMENT_LABELS: Record<string, string> = {
   ESEWA: "eSewa",
   KHALTI: "Khalti",
 };
+
+function isAwaitingPayment(order: { status: string; paymentMethod: string }) {
+  return (
+    (order.status === "PENDING" || order.status === "ASSIGNED") &&
+    order.paymentMethod !== "COD"
+  );
+}
 
 function StatusPill({ status }: { status: string }) {
   return (
@@ -56,8 +65,7 @@ function SuccessBanner({
   order: Order;
   onDismiss: () => void;
 }) {
-  const awaitingPayment =
-    order.status === "PENDING" && order.paymentMethod !== "COD";
+  const awaitingPayment = isAwaitingPayment(order);
 
   let title = "Order placed successfully!";
   let detail = `Pay Rs. ${order.totalAmount.toLocaleString()} in cash when your order arrives.`;
@@ -149,8 +157,7 @@ function OrderCard({
   defaultOpen: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
-  const awaitingPayment =
-    order.status === "PENDING" && order.paymentMethod !== "COD";
+  const awaitingPayment = isAwaitingPayment(order);
 
   let paymentDetail = `Rs. ${order.totalAmount.toLocaleString()} due on delivery`;
   if (order.status === "PAID") {
@@ -158,7 +165,7 @@ function OrderCard({
       ? `Paid on ${format(new Date(order.paidAt), "d MMM yyyy, h:mm a")}`
       : "Paid";
   }
-  if (order.status === "PENDING" && order.paymentMethod !== "COD") {
+  if (isAwaitingPayment(order)) {
     paymentDetail = "Awaiting wallet payment";
   }
 
@@ -249,8 +256,33 @@ function OrderCard({
 
             <div className="space-y-1.5 border-t pt-3 text-sm">
               <div className="flex justify-between text-muted-foreground">
-                <span>Delivery</span>
-                <span className="text-emerald-600">FREE</span>
+                <span>Subtotal</span>
+                <span className="tabular-nums">
+                  Rs. {order.subtotal.toLocaleString()}
+                </span>
+              </div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>
+                  Delivery
+                  {typeof order.deliveryDistanceKm === "number" && (
+                    <span className="text-muted-foreground/70">
+                      {" "}
+                      · {order.deliveryDistanceKm} km
+                    </span>
+                  )}
+                </span>
+                <span
+                  className={cn(
+                    "tabular-nums",
+                    order.deliveryCharge > 0
+                      ? "text-foreground"
+                      : "text-emerald-600"
+                  )}
+                >
+                  {order.deliveryCharge > 0
+                    ? `Rs. ${order.deliveryCharge.toLocaleString()}`
+                    : "FREE"}
+                </span>
               </div>
               <div className="flex justify-between font-semibold">
                 <span>Total</span>

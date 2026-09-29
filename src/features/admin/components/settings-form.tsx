@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { DeliverySettingsCard } from "@/features/admin/components/delivery-settings-card";
 
 interface FieldProps {
   label: string;
@@ -120,6 +121,7 @@ export function SettingsForm() {
         <TabsTrigger value="general">General</TabsTrigger>
         <TabsTrigger value="payments">Payments</TabsTrigger>
         <TabsTrigger value="notifications">Notifications</TabsTrigger>
+        <TabsTrigger value="delivery">Delivery</TabsTrigger>
       </TabsList>
 
       <TabsContent value="general">
@@ -359,6 +361,10 @@ export function SettingsForm() {
             <SaveButton saved={saved} onClick={save} />
           </div>
         </div>
+      </TabsContent>
+
+      <TabsContent value="delivery">
+        <DeliverySettingsCard />
       </TabsContent>
     </Tabs>
   );

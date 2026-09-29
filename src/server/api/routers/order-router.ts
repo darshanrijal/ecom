@@ -5,6 +5,7 @@ import {
   orderByIdSchema,
   type ShippingInfo,
 } from "@/lib/order-schema";
+import { quoteDelivery } from "@/lib/delivery";
 import { protectedProcedure, publicProcedure, router } from "../trpc";
 
 const orderInclude = {
@@ -28,6 +29,11 @@ interface OrderRecord {
   paidAt: Date | null;
   paymentRef: string | null;
   totalAmount: { toNumber: () => number };
+  subtotal: { toNumber: () => number };
+  discountAmount: { toNumber: () => number };
+  deliveryCharge: { toNumber: () => number };
+  deliveryDistanceKm: { toNumber: () => number } | null;
+  deliveryRatePerKm: { toNumber: () => number } | null;
   shippingInfo: unknown;
   createdAt: Date;
   updatedAt: Date;
@@ -54,6 +60,15 @@ function serializeOrder(order: OrderRecord) {
     paidAt: order.paidAt,
     paymentRef: order.paymentRef,
     totalAmount: order.totalAmount.toNumber(),
+    subtotal: order.subtotal.toNumber(),
+    discountAmount: order.discountAmount.toNumber(),
+    deliveryCharge: order.deliveryCharge.toNumber(),
+    deliveryDistanceKm: order.deliveryDistanceKm
+      ? order.deliveryDistanceKm.toNumber()
+      : null,
+    deliveryRatePerKm: order.deliveryRatePerKm
+      ? order.deliveryRatePerKm.toNumber()
+      : null,
     shippingInfo: order.shippingInfo as ShippingInfo,
     createdAt: order.createdAt,
     updatedAt: order.updatedAt,
@@ -107,15 +122,48 @@ export const orderRouter = router({
           return { sku, quantity: item.quantity };
         });
 
-        const totalAmount = lines.reduce(
+        const subtotal = lines.reduce(
           (sum, line) => sum + Number(line.sku.price) * line.quantity,
           0
         );
+
+        // The delivery charge is always recalculated here — the client never
+        // sends it, and this quote becomes the order's historical snapshot.
+        const setting = await tx.storeSetting.findUnique({
+          where: { id: "main" },
+        });
+        const storeLat = setting?.storeLat ?? null;
+        const storeLng = setting?.storeLng ?? null;
+        const rateDecimal = setting?.deliveryRatePerKm ?? null;
+        const ratePerKm =
+          rateDecimal === null
+            ? null
+            : Math.round(Number(rateDecimal) * 100) / 100;
+        const quote = quoteDelivery({
+          store:
+            storeLat !== null && storeLng !== null
+              ? { lat: storeLat, lng: storeLng }
+              : null,
+          customer: {
+            lat: input.shippingInfo.deliveryLat,
+            lng: input.shippingInfo.deliveryLng,
+          },
+          ratePerKm,
+        });
+        const totalAmount =
+          Math.round((subtotal + quote.deliveryCharge) * 100) / 100;
 
         const order = await tx.order.create({
           data: {
             userId,
             totalAmount,
+            subtotal,
+            discountAmount: 0,
+            deliveryCharge: quote.deliveryCharge,
+            deliveryDistanceKm: quote.distanceKm,
+            deliveryRatePerKm: ratePerKm,
+            storeLat,
+            storeLng,
             paymentMethod: input.paymentMethod,
             shippingInfo: {
               ...input.shippingInfo,

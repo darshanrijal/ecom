@@ -5,6 +5,13 @@ import {
   categoryListSchema,
   categoryUpdateSchema,
   customerListSchema,
+  deliveryAssignSchema,
+  deliveryManCreateSchema,
+  deliveryManSetActiveSchema,
+  deliveryManUpdateSchema,
+  deliverySettingsInputSchema,
+  ORDER_STATUS_LABELS,
+  ORDER_TRANSITIONS,
   productCreateSchema,
   productListSchema,
   productUpdateSchema,
@@ -12,6 +19,7 @@ import {
 import { slugify } from "@/lib/catalog";
 import { cleanupImagesIfUnused } from "@/lib/image-cleanup";
 import { isAdminEmail } from "@/lib/admin";
+import { db } from "@/lib/prisma";
 import { adminProcedure, router } from "../trpc";
 import { flatAdminProcedures } from "./admin-flat";
 import {
@@ -21,6 +29,34 @@ import {
   enforceUniqueSlug,
   serializeDecimal,
 } from "./admin-helpers";
+
+/**
+ * Links a delivery man to an existing account by email. `excludeManId` keeps
+ * a delivery man's own current link from counting as a conflict on edit.
+ */
+async function resolveDeliveryAccount(email: string, excludeManId?: string) {
+  const user = await db.user.findUnique({
+    where: { email },
+    select: { id: true },
+  });
+  if (!user) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `No account exists for ${email}.`,
+    });
+  }
+  const linked = await db.deliveryMan.findUnique({
+    where: { userId: user.id },
+    select: { id: true, name: true },
+  });
+  if (linked && linked.id !== excludeManId) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `${email} is already linked to ${linked.name}.`,
+    });
+  }
+  return user.id;
+}
 
 const productRowSelect = {
   id: true,
@@ -525,6 +561,213 @@ export const adminRouter = router({
           existing.baseImage,
           ...existing.productSKUs.map((sku) => sku.imageUrl),
         ]);
+      }),
+  }),
+
+  delivery: router({
+    getSettings: adminProcedure.query(async ({ ctx }) => {
+      const setting = await ctx.db.storeSetting.findUnique({
+        where: { id: "main" },
+      });
+      const rate = setting?.deliveryRatePerKm ?? null;
+      return {
+        storeLat: setting?.storeLat ?? null,
+        storeLng: setting?.storeLng ?? null,
+        deliveryRatePerKm: rate === null ? null : Number(rate),
+      };
+    }),
+
+    updateSettings: adminProcedure
+      .input(deliverySettingsInputSchema)
+      .mutation(async ({ ctx, input }) => {
+        const data = {
+          storeLat: input.storeLat,
+          storeLng: input.storeLng,
+          deliveryRatePerKm:
+            input.deliveryRatePerKm === null
+              ? null
+              : Math.round(input.deliveryRatePerKm * 100) / 100,
+        };
+        const setting = await ctx.db.storeSetting.upsert({
+          where: { id: "main" },
+          create: { id: "main", ...data },
+          update: data,
+        });
+        const savedRate = setting.deliveryRatePerKm ?? null;
+        return {
+          storeLat: setting.storeLat,
+          storeLng: setting.storeLng,
+          deliveryRatePerKm: savedRate === null ? null : Number(savedRate),
+        };
+      }),
+
+    listMen: adminProcedure.query(async ({ ctx }) => {
+      const men = await ctx.db.deliveryMan.findMany({
+        orderBy: [{ isActive: "desc" }, { name: "asc" }],
+        include: {
+          user: { select: { email: true } },
+          _count: { select: { orders: true } },
+        },
+      });
+      return men.map((man) => ({
+        id: man.id,
+        name: man.name,
+        phone: man.phone,
+        isActive: man.isActive,
+        accountEmail: man.user?.email ?? null,
+        assignedOrders: man._count.orders,
+        createdAt: man.createdAt,
+      }));
+    }),
+
+    createMan: adminProcedure
+      .input(deliveryManCreateSchema)
+      .mutation(async ({ ctx, input }) => {
+        const userId = input.accountEmail
+          ? await resolveDeliveryAccount(input.accountEmail)
+          : null;
+        const man = await ctx.db.deliveryMan.create({
+          data: { name: input.name, phone: input.phone, userId },
+        });
+        return man.id;
+      }),
+
+    updateMan: adminProcedure
+      .input(deliveryManUpdateSchema)
+      .mutation(async ({ ctx, input }) => {
+        const existing = await ctx.db.deliveryMan.findUnique({
+          where: { id: input.id },
+          select: { id: true },
+        });
+        if (!existing) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Delivery man not found.",
+          });
+        }
+
+        let userId: string | null | undefined;
+        if (input.accountEmail === undefined) {
+          userId = undefined;
+        } else if (input.accountEmail) {
+          userId = await resolveDeliveryAccount(input.accountEmail, input.id);
+        } else {
+          userId = null;
+        }
+
+        await ctx.db.deliveryMan.update({
+          where: { id: input.id },
+          data: {
+            name: input.name,
+            phone: input.phone,
+            ...(userId === undefined ? {} : { userId }),
+          },
+        });
+        return input.id;
+      }),
+
+    setActive: adminProcedure
+      .input(deliveryManSetActiveSchema)
+      .mutation(async ({ ctx, input }) => {
+        const man = await ctx.db.deliveryMan
+          .update({
+            where: { id: input.id },
+            data: { isActive: input.isActive },
+          })
+          .catch(() => null);
+        if (!man) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Delivery man not found.",
+          });
+        }
+        return { id: man.id, isActive: man.isActive };
+      }),
+
+    deleteMan: adminProcedure
+      .input(byIdSchema)
+      .mutation(async ({ ctx, input }) => {
+        const man = await ctx.db.deliveryMan.findUnique({
+          where: { id: input.id },
+          select: { id: true, _count: { select: { orders: true } } },
+        });
+        if (!man) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Delivery man not found.",
+          });
+        }
+        if (man._count.orders > 0) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message:
+              "This delivery man has assigned orders. Deactivate the account instead.",
+          });
+        }
+        await ctx.db.deliveryMan.delete({ where: { id: input.id } });
+      }),
+
+    assign: adminProcedure
+      .input(deliveryAssignSchema)
+      .mutation(async ({ ctx, input }) => {
+        const order = await ctx.db.order.findUnique({
+          where: { id: input.orderId },
+          select: { id: true, status: true },
+        });
+        if (!order) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Order not found.",
+          });
+        }
+
+        const terminalStatuses = ["DELIVERED", "CANCELLED", "REFUNDED"];
+        if (terminalStatuses.includes(order.status)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `${ORDER_STATUS_LABELS[order.status]} orders cannot be reassigned.`,
+          });
+        }
+
+        if (input.deliveryManId === null) {
+          await ctx.db.order.update({
+            where: { id: order.id },
+            data: { deliveryManId: null },
+          });
+          return {
+            orderId: order.id,
+            deliveryManId: null,
+            status: order.status,
+          };
+        }
+
+        const man = await ctx.db.deliveryMan.findUnique({
+          where: { id: input.deliveryManId },
+          select: { id: true, name: true, isActive: true },
+        });
+        if (!man) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Delivery man not found.",
+          });
+        }
+        if (!man.isActive) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `${man.name} is disabled. Activate the delivery man first.`,
+          });
+        }
+
+        return await ctx.db.order.update({
+          where: { id: order.id },
+          data: {
+            deliveryManId: man.id,
+            ...(ORDER_TRANSITIONS[order.status].includes("ASSIGNED")
+              ? { status: "ASSIGNED" }
+              : {}),
+          },
+          select: { id: true, status: true, deliveryManId: true },
+        });
       }),
   }),
 });

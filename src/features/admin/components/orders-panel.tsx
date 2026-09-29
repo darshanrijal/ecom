@@ -27,6 +27,8 @@ const STATUS_STYLES: Record<OrderStatus, string> = {
   PENDING: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
   PAID: "bg-sky-500/15 text-sky-700 dark:text-sky-400",
   PROCESSING: "bg-indigo-500/15 text-indigo-700 dark:text-indigo-400",
+  ASSIGNED: "bg-teal-500/15 text-teal-700 dark:text-teal-400",
+  OUT_FOR_DELIVERY: "bg-orange-500/15 text-orange-700 dark:text-orange-400",
   SHIPPED: "bg-violet-500/15 text-violet-700 dark:text-violet-400",
   DELIVERED: "bg-green-500/15 text-green-700 dark:text-green-400",
   CANCELLED: "bg-red-500/15 text-red-700 dark:text-red-400",

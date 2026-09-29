@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PHONE_PATTERN } from "@/lib/order-schema";
 
 export const byIdSchema = z.object({ id: z.cuid2() });
 
@@ -152,6 +153,8 @@ export const ORDER_STATUSES = [
   "PENDING",
   "PAID",
   "PROCESSING",
+  "ASSIGNED",
+  "OUT_FOR_DELIVERY",
   "SHIPPED",
   "DELIVERED",
   "CANCELLED",
@@ -164,6 +167,8 @@ export const ORDER_STATUS_LABELS: Record<AdminOrderStatus, string> = {
   PENDING: "Pending",
   PAID: "Paid",
   PROCESSING: "Processing",
+  ASSIGNED: "Assigned",
+  OUT_FOR_DELIVERY: "Out for delivery",
   SHIPPED: "Shipped",
   DELIVERED: "Delivered",
   CANCELLED: "Cancelled",
@@ -174,10 +179,12 @@ export const ORDER_TRANSITIONS: Record<
   AdminOrderStatus,
   readonly AdminOrderStatus[]
 > = {
-  PENDING: ["PAID", "CANCELLED"],
-  PAID: ["PROCESSING", "CANCELLED"],
-  PROCESSING: ["SHIPPED", "CANCELLED"],
-  SHIPPED: ["DELIVERED", "CANCELLED"],
+  PENDING: ["PAID", "ASSIGNED", "CANCELLED"],
+  PAID: ["ASSIGNED", "PROCESSING", "CANCELLED"],
+  PROCESSING: ["SHIPPED", "ASSIGNED", "OUT_FOR_DELIVERY", "CANCELLED"],
+  ASSIGNED: ["OUT_FOR_DELIVERY", "PROCESSING", "CANCELLED"],
+  OUT_FOR_DELIVERY: ["DELIVERED", "CANCELLED"],
+  SHIPPED: ["DELIVERED", "OUT_FOR_DELIVERY", "CANCELLED"],
   DELIVERED: ["REFUNDED"],
   CANCELLED: [],
   REFUNDED: [],
@@ -308,3 +315,66 @@ export const adminProductFormSchema = z.object({
 
 export type AdminProductFormInput = z.input<typeof adminProductFormSchema>;
 export type AdminProductFormOutput = z.output<typeof adminProductFormSchema>;
+
+// ---------------------------------------------------------------------------
+// Delivery settings, delivery men and order assignment (admin procedures).
+// Server-side input: plain numbers, range-checked; null means "not set".
+// ---------------------------------------------------------------------------
+
+export const deliverySettingsInputSchema = z
+  .object({
+    storeLat: z
+      .number()
+      .min(-90, "Latitude must be between -90 and 90")
+      .max(90, "Latitude must be between -90 and 90")
+      .nullable(),
+    storeLng: z
+      .number()
+      .min(-180, "Longitude must be between -180 and 180")
+      .max(180, "Longitude must be between -180 and 180")
+      .nullable(),
+    deliveryRatePerKm: z
+      .number()
+      .min(0, "Rate must be zero or more")
+      .max(100_000, "Rate is too high")
+      .nullable(),
+  })
+  .superRefine((value, ctx) => {
+    if ((value.storeLat === null) !== (value.storeLng === null)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["storeLng"],
+        message: "Set both store coordinates, or clear both",
+      });
+    }
+  });
+
+export type DeliverySettingsInput = z.infer<typeof deliverySettingsInputSchema>;
+
+const deliveryPhone = z
+  .string()
+  .trim()
+  .min(1, "Phone number is required")
+  .regex(PHONE_PATTERN, "Enter a valid phone number (e.g. 98XXXXXXXX)");
+
+export const deliveryManCreateSchema = z.object({
+  name: z.string().trim().min(2, "Enter a name").max(80),
+  phone: deliveryPhone,
+  accountEmail: z.email("Enter a valid email").nullish(),
+});
+
+export type DeliveryManCreateInput = z.infer<typeof deliveryManCreateSchema>;
+
+export const deliveryManUpdateSchema = deliveryManCreateSchema.extend({
+  id: z.cuid2(),
+});
+
+export const deliveryManSetActiveSchema = z.object({
+  id: z.cuid2(),
+  isActive: z.boolean(),
+});
+
+export const deliveryAssignSchema = z.object({
+  orderId: z.cuid2(),
+  deliveryManId: z.cuid2().nullable(),
+});

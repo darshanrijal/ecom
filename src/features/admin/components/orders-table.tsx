@@ -3,8 +3,10 @@
 import { useState } from "react";
 import {
   EyeIcon,
+  ListChecksIcon,
   MoreHorizontalIcon,
   PackageIcon,
+  UserPlusIcon,
   XCircleIcon,
 } from "lucide-react";
 
@@ -37,6 +39,10 @@ import {
   GatewayBadge,
   OrderStatusBadge,
 } from "@/features/admin/components/status-badge";
+import {
+  OrderAssignDialog,
+  OrderStatusDialog,
+} from "@/features/admin/components/order-action-dialogs";
 import {
   ORDER_STATUS_LABELS,
   ORDER_STATUSES,
@@ -87,6 +93,8 @@ export function OrdersTable() {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
   const [gateway, setGateway] = useState("all");
+  const [assignOrder, setAssignOrder] = useState<AdminOrder | null>(null);
+  const [statusOrder, setStatusOrder] = useState<AdminOrder | null>(null);
 
   const ordersQuery = trpc.admin.listOrders.useQuery({ limit: 100 });
   const orders = ordersQuery.data?.orders ?? [];
@@ -154,6 +162,7 @@ export function OrdersTable() {
               <DataTableHead className="text-right">Amount</DataTableHead>
               <DataTableHead>Payment</DataTableHead>
               <DataTableHead>Status</DataTableHead>
+              <DataTableHead>Delivery</DataTableHead>
               <DataTableHead>Date</DataTableHead>
               <DataTableHead className="w-10" />
             </TableRow>
@@ -163,20 +172,20 @@ export function OrdersTable() {
               Array.from({ length: 6 }, (_, index) => (
                 // biome-ignore lint/suspicious/noArrayIndexKey: loading placeholder rows
                 <TableRow key={index}>
-                  <DataTableCell colSpan={8}>
+                  <DataTableCell colSpan={9}>
                     <Skeleton className="h-8" />
                   </DataTableCell>
                 </TableRow>
               ))}
 
             {!isLoading && failed && (
-              <DataTableEmpty colSpan={8}>
+              <DataTableEmpty colSpan={9}>
                 Couldn't load orders. Refresh the page to try again.
               </DataTableEmpty>
             )}
 
             {!isLoading && !failed && filtered.length === 0 && (
-              <DataTableEmpty colSpan={8}>
+              <DataTableEmpty colSpan={9}>
                 No orders match your filters.
               </DataTableEmpty>
             )}
@@ -208,6 +217,20 @@ export function OrdersTable() {
                   <DataTableCell>
                     <OrderStatusBadge status={order.status} />
                   </DataTableCell>
+                  <DataTableCell>
+                    {order.deliveryMan ? (
+                      <>
+                        <p className="font-medium">{order.deliveryMan.name}</p>
+                        <p className="text-muted-foreground text-xs tabular-nums">
+                          {order.deliveryMan.phone}
+                        </p>
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">
+                        Unassigned
+                      </span>
+                    )}
+                  </DataTableCell>
                   <DataTableCell className="text-muted-foreground">
                     {formatOrderDate(order.createdAt)}
                   </DataTableCell>
@@ -233,6 +256,14 @@ export function OrdersTable() {
                             </button>
                           }
                         />
+                        <DropdownMenuItem onClick={() => setStatusOrder(order)}>
+                          <ListChecksIcon className="size-4" />
+                          Change status…
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setAssignOrder(order)}>
+                          <UserPlusIcon className="size-4" />
+                          Assign delivery man…
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                           render={
                             <button type="button">
@@ -264,6 +295,19 @@ export function OrdersTable() {
         <p className="text-muted-foreground text-xs">
           Showing {filtered.length} of {orders.length} orders
         </p>
+      )}
+
+      {assignOrder !== null && (
+        <OrderAssignDialog
+          order={assignOrder}
+          onClose={() => setAssignOrder(null)}
+        />
+      )}
+      {statusOrder !== null && (
+        <OrderStatusDialog
+          order={statusOrder}
+          onClose={() => setStatusOrder(null)}
+        />
       )}
     </div>
   );

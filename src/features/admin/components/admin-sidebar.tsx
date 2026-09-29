@@ -12,6 +12,7 @@ import {
   ShoppingCartIcon,
   StoreIcon,
   TagsIcon,
+  TruckIcon,
   UserIcon,
 } from "lucide-react";
 
@@ -56,6 +57,7 @@ const management: SidebarNavItem[] = [
   { title: "Products", url: "/admin/products", icon: PackageIcon },
   { title: "Categories", url: "/admin/categories", icon: TagsIcon },
   { title: "Customers", url: "/admin/customers", icon: UserIcon },
+  { title: "Delivery men", url: "/admin/delivery-men", icon: TruckIcon },
 ];
 
 const account: SidebarNavItem[] = [

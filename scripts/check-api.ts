@@ -631,6 +631,8 @@ async function main() {
       city: "Kathmandu",
       address: "Verification Tole 12, Baneshwor",
       note: "Leave at the gate",
+      deliveryLat: 27.7172,
+      deliveryLng: 85.324,
     };
 
     await checkFails(

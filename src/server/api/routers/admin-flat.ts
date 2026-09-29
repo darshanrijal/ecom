@@ -312,12 +312,18 @@ function parseShippingInfo(value: unknown) {
       : {};
   const text = (key: string) =>
     typeof source[key] === "string" ? source[key] : "";
+  const coord = (key: string) =>
+    typeof source[key] === "number" && Number.isFinite(source[key])
+      ? (source[key] as number)
+      : null;
   return {
     fullName: text("fullName"),
     address: text("address"),
     city: text("city"),
     province: text("province"),
     phone: text("phone"),
+    deliveryLat: coord("deliveryLat"),
+    deliveryLng: coord("deliveryLng"),
   };
 }
 
@@ -328,8 +334,16 @@ interface AdminOrderRow {
   paidAt: Date | null;
   createdAt: Date;
   totalAmount: unknown;
+  subtotal: unknown;
+  discountAmount: unknown;
+  deliveryCharge: unknown;
+  deliveryDistanceKm: unknown;
+  deliveryRatePerKm: unknown;
+  storeLat: number | null;
+  storeLng: number | null;
   shippingInfo: unknown;
   user: { email: string } | null;
+  deliveryMan: { id: string; name: string; phone: string } | null;
   items: Array<{
     id: string;
     productName: string;
@@ -347,7 +361,15 @@ function serializeAdminOrder(order: AdminOrderRow) {
     paidAt: order.paidAt,
     createdAt: order.createdAt,
     totalAmount: Number(order.totalAmount),
+    subtotal: Number(order.subtotal),
+    discountAmount: Number(order.discountAmount),
+    deliveryCharge: Number(order.deliveryCharge),
+    deliveryDistanceKm: serializeDecimal(order.deliveryDistanceKm),
+    deliveryRatePerKm: serializeDecimal(order.deliveryRatePerKm),
+    storeLat: order.storeLat,
+    storeLng: order.storeLng,
     user: order.user ? { email: order.user.email } : null,
+    deliveryMan: order.deliveryMan,
     shippingInfo: parseShippingInfo(order.shippingInfo),
     items: order.items.map((item) => ({
       id: item.id,
@@ -375,12 +397,17 @@ async function restockItems(
   }
 }
 
-const PAID_ORDER_STATUSES: AdminOrderStatus[] = [
-  "PAID",
-  "PROCESSING",
-  "SHIPPED",
-  "DELIVERED",
-];
+// Orders count toward revenue once payment has been received, regardless of
+// where the order sits in the delivery lifecycle, and stop counting if the
+// money goes back (cancelled/refunded).
+const REVERSED_STATUSES: AdminOrderStatus[] = ["CANCELLED", "REFUNDED"];
+
+function isRevenueOrder(row: {
+  status: AdminOrderStatus;
+  paidAt: Date | null;
+}) {
+  return row.paidAt !== null && !REVERSED_STATUSES.includes(row.status);
+}
 
 interface MonthBucket {
   label: string;
@@ -392,6 +419,7 @@ interface MonthBucket {
 interface DashboardOrderRow {
   createdAt: Date;
   status: AdminOrderStatus;
+  paidAt: Date | null;
   totalAmount: unknown;
 }
 
@@ -447,7 +475,7 @@ function summarizeOrdersByMonth(rows: DashboardOrderRow[], now: Date) {
       continue;
     }
     bucket.orders += 1;
-    if (PAID_ORDER_STATUSES.includes(row.status)) {
+    if (isRevenueOrder(row)) {
       bucket.paidCount += 1;
       bucket.paidRevenue += Number(row.totalAmount);
     }
@@ -511,6 +539,7 @@ async function requireCategory(id: string) {
 
 const orderInclude = {
   user: { select: { email: true } },
+  deliveryMan: { select: { id: true, name: true, phone: true } },
   items: true,
 } as const;
 
@@ -551,7 +580,7 @@ export const flatAdminProcedures = {
       db.order.count(),
       db.order.groupBy({ by: ["status"], _count: { _all: true } }),
       db.order.aggregate({
-        where: { status: { in: PAID_ORDER_STATUSES } },
+        where: { paidAt: { not: null }, status: { notIn: REVERSED_STATUSES } },
         _sum: { totalAmount: true },
         _count: true,
       }),
@@ -559,7 +588,12 @@ export const flatAdminProcedures = {
       getStorageUsage(),
       db.order.findMany({
         where: { createdAt: { gte: monthWindowStart } },
-        select: { createdAt: true, status: true, totalAmount: true },
+        select: {
+          createdAt: true,
+          status: true,
+          paidAt: true,
+          totalAmount: true,
+        },
       }),
       db.orderItem.findMany({
         where: { skuId: { not: null } },
@@ -688,7 +722,10 @@ export const flatAdminProcedures = {
           where: { id: order.id },
           data: {
             status: input.status,
-            ...(input.status === "PAID" && !order.paidAt
+            ...((input.status === "PAID" ||
+              (input.status === "DELIVERED" &&
+                order.paymentMethod === "COD")) &&
+            !order.paidAt
               ? { paidAt: new Date() }
               : {}),
           },

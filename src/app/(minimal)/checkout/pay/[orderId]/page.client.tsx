@@ -60,7 +60,8 @@ export function PayClient({ orderId }: { orderId: string }) {
   const declined =
     !isGatewayReturn && !!returnStatus && returnStatus !== "COMPLETE";
   const needsPayment =
-    order.status === "PENDING" && order.paymentMethod !== "COD";
+    (order.status === "PENDING" || order.status === "ASSIGNED") &&
+    order.paymentMethod !== "COD";
 
   const [phase, setPhase] = useState<Phase>(() =>
     isGatewayReturn ? "verifying" : "init"

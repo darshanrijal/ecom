@@ -84,7 +84,7 @@ export function ProductsTable() {
     },
     {
       getNextPageParam: (lastPage) => lastPage.nextCursor,
-    },
+    }
   );
 
   const archiveProduct = trpc.admin.products.archive.useMutation();
@@ -162,7 +162,7 @@ export function ProductsTable() {
                 {(value) =>
                   value
                     ? (categories.data?.find(
-                        (category) => category.id === value,
+                        (category) => category.id === value
                       )?.name ?? value)
                     : "All categories"
                 }

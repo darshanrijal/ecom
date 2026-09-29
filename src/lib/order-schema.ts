@@ -3,6 +3,8 @@ import z from "zod";
 const PHONE_PATTERN = /^\+?[\d\s-]{7,16}$/;
 const NON_DIGITS = /\D/g;
 
+export { PHONE_PATTERN };
+
 export const NEPAL_PROVINCES = [
   "Koshi",
   "Madhesh",
@@ -45,9 +47,40 @@ export const shippingInfoSchema = z.object({
   city: z.string().trim().min(2, "Enter your city or district"),
   address: z.string().trim().min(5, "Enter your street address"),
   note: z.string().max(300, "Note is too long"),
+  deliveryLat: z
+    .number()
+    .min(-90, "Latitude must be between -90 and 90")
+    .max(90, "Latitude must be between -90 and 90"),
+  deliveryLng: z
+    .number()
+    .min(-180, "Longitude must be between -180 and 180")
+    .max(180, "Longitude must be between -180 and 180"),
 });
 
 export type ShippingInfo = z.infer<typeof shippingInfoSchema>;
+
+const coordinateField = (label: string, min: number, max: number) =>
+  z
+    .string()
+    .trim()
+    .min(1, `${label} is required`)
+    .refine(
+      (value) => Number.isFinite(Number(value)),
+      `Enter a valid ${label.toLowerCase()}`
+    )
+    .refine(
+      (value) => Number(value) >= min && Number(value) <= max,
+      `${label} must be between ${min} and ${max}`
+    )
+    .transform(Number);
+
+/** Checkout form variant: coordinates are typed into text inputs as strings. */
+export const shippingInfoFormSchema = shippingInfoSchema.extend({
+  deliveryLat: coordinateField("Latitude", -90, 90),
+  deliveryLng: coordinateField("Longitude", -180, 180),
+});
+
+export type ShippingFormValues = z.infer<typeof shippingInfoFormSchema>;
 
 export const createOrderSchema = z.object({
   items: z

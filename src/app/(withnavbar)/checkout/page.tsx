@@ -15,7 +15,9 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeftIcon,
   BanknoteIcon,
+  LocateFixedIcon,
   LockIcon,
+  MapPinIcon,
   ShieldCheckIcon,
   TruckIcon,
   PackageXIcon,
@@ -28,13 +30,75 @@ import type z from "zod";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { authClient } from "@/lib/auth-client";
-import { NEPAL_PROVINCES, shippingInfoSchema } from "@/lib/order-schema";
+import { quoteDelivery, type DeliveryQuote } from "@/lib/delivery";
+import { NEPAL_PROVINCES, shippingInfoFormSchema } from "@/lib/order-schema";
 import { cn } from "@/lib/utils";
 import { useOrderStore } from "@/stores/order-store";
 import { ProductImage } from "@/features/products/components/product-image";
 import { useCartSkus } from "@/hooks/use-cart-skus";
 
-type ShippingFormValues = z.infer<typeof shippingInfoSchema>;
+type ShippingFormInput = z.input<typeof shippingInfoFormSchema>;
+type ShippingFormValues = z.output<typeof shippingInfoFormSchema>;
+
+function parseCoord(value: string, min: number, max: number) {
+  if (value.trim() === "") {
+    return null;
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < min || parsed > max) {
+    return null;
+  }
+  return parsed;
+}
+
+interface PreviewSettings {
+  configured: boolean;
+  storeLat: number | null;
+  storeLng: number | null;
+  ratePerKm: number | null;
+}
+
+/** Non-authoritative checkout preview — the server recomputes the quote. */
+function previewQuote(
+  settings: PreviewSettings | undefined,
+  latValue: string,
+  lngValue: string
+) {
+  const lat = parseCoord(latValue, -90, 90);
+  const lng = parseCoord(lngValue, -180, 180);
+  if (lat === null || lng === null) {
+    return null;
+  }
+  const storeLat = settings?.storeLat ?? null;
+  const storeLng = settings?.storeLng ?? null;
+  return quoteDelivery({
+    store:
+      storeLat !== null && storeLng !== null
+        ? { lat: storeLat, lng: storeLng }
+        : null,
+    customer: { lat, lng },
+    ratePerKm: settings?.ratePerKm ?? null,
+  });
+}
+
+function describeDelivery(
+  settings: PreviewSettings | undefined,
+  quote: DeliveryQuote | null
+) {
+  if (quote !== null) {
+    if (quote.deliveryCharge > 0) {
+      return {
+        label: `Rs. ${quote.deliveryCharge.toLocaleString()}`,
+        free: false,
+      };
+    }
+    return { label: "FREE", free: true };
+  }
+  if (settings?.configured === false) {
+    return { label: "FREE", free: true };
+  }
+  return { label: "—", free: false };
+}
 
 const PAYMENT_OPTIONS = [
   {
@@ -83,9 +147,12 @@ export default function CheckoutPage() {
   const addGuestOrder = useOrderStore((state) => state.addOrder);
   const createOrder = trpc.orders.create.useMutation();
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("COD");
+  const [locating, setLocating] = useState(false);
 
-  const form = useForm<ShippingFormValues>({
-    resolver: zodResolver(shippingInfoSchema),
+  const { data: deliverySettings } = trpc.delivery.getSettings.useQuery();
+
+  const form = useForm<ShippingFormInput, unknown, ShippingFormValues>({
+    resolver: zodResolver(shippingInfoFormSchema),
     defaultValues: {
       fullName: "",
       phone: "",
@@ -94,8 +161,58 @@ export default function CheckoutPage() {
       city: "",
       address: "",
       note: "",
+      deliveryLat: "",
+      deliveryLng: "",
     },
   });
+
+  const quote = previewQuote(
+    deliverySettings,
+    form.watch("deliveryLat"),
+    form.watch("deliveryLng")
+  );
+  const deliveryCharge = quote ? quote.deliveryCharge : 0;
+  const grandTotal = subtotal + deliveryCharge;
+  const { label: deliveryLabel, free: deliveryFree } = describeDelivery(
+    deliverySettings,
+    quote
+  );
+
+  function handleLocate() {
+    if (!navigator.geolocation) {
+      toast.add({
+        type: "error",
+        title: "Location not supported",
+        description:
+          "Your browser can't share a location. Enter the coordinates manually.",
+      });
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLocating(false);
+        form.setValue("deliveryLat", position.coords.latitude.toFixed(6), {
+          shouldValidate: true,
+          shouldDirty: true,
+        });
+        form.setValue("deliveryLng", position.coords.longitude.toFixed(6), {
+          shouldValidate: true,
+          shouldDirty: true,
+        });
+      },
+      () => {
+        setLocating(false);
+        toast.add({
+          type: "error",
+          title: "Couldn't get your location",
+          description:
+            "Allow location access, or enter the latitude and longitude manually.",
+        });
+      },
+      { enableHighAccuracy: true, timeout: 10_000 }
+    );
+  }
 
   const prefilled = useRef(false);
   useEffect(() => {
@@ -390,6 +507,72 @@ export default function CheckoutPage() {
                   </Field>
                 )}
               />
+
+              <Controller
+                control={form.control}
+                name="deliveryLat"
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor="deliveryLat">Latitude</FieldLabel>
+                    <Input
+                      {...field}
+                      id="deliveryLat"
+                      inputMode="decimal"
+                      autoComplete="off"
+                      placeholder="27.7172"
+                      aria-invalid={fieldState.invalid}
+                    />
+                    {!!fieldState.invalid && (
+                      <FieldError errors={[fieldState.error]} />
+                    )}
+                  </Field>
+                )}
+              />
+
+              <Controller
+                control={form.control}
+                name="deliveryLng"
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor="deliveryLng">Longitude</FieldLabel>
+                    <Input
+                      {...field}
+                      id="deliveryLng"
+                      inputMode="decimal"
+                      autoComplete="off"
+                      placeholder="85.3240"
+                      aria-invalid={fieldState.invalid}
+                    />
+                    {!!fieldState.invalid && (
+                      <FieldError errors={[fieldState.error]} />
+                    )}
+                  </Field>
+                )}
+              />
+
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-muted/40 px-4 py-3 sm:col-span-2">
+                <div className="flex items-start gap-2 text-muted-foreground text-sm">
+                  <MapPinIcon className="mt-0.5 size-4 shrink-0" />
+                  <p>
+                    Set the drop-off point so we can calculate the delivery
+                    distance and charge.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={locating}
+                  onClick={handleLocate}
+                >
+                  {locating ? (
+                    <Spinner />
+                  ) : (
+                    <LocateFixedIcon className="size-4" />
+                  )}
+                  Use my location
+                </Button>
+              </div>
             </div>
           </section>
 
@@ -467,7 +650,7 @@ export default function CheckoutPage() {
                 <p>
                   You pay{" "}
                   <span className="font-medium text-foreground">
-                    Rs. {subtotal.toLocaleString()}
+                    Rs. {grandTotal.toLocaleString()}
                   </span>{" "}
                   in cash when your order arrives. Please keep the exact amount
                   ready.
@@ -556,13 +739,28 @@ export default function CheckoutPage() {
                 </span>
               </div>
               <div className="flex justify-between text-muted-foreground">
-                <span>Delivery</span>
-                <span className="font-medium text-emerald-600">FREE</span>
+                <span>
+                  Delivery
+                  {typeof quote?.distanceKm === "number" && (
+                    <span className="text-muted-foreground/70">
+                      {" "}
+                      · {quote.distanceKm} km
+                    </span>
+                  )}
+                </span>
+                <span
+                  className={cn(
+                    "font-medium tabular-nums",
+                    deliveryFree ? "text-emerald-600" : "text-foreground"
+                  )}
+                >
+                  {deliveryLabel}
+                </span>
               </div>
               <div className="flex justify-between border-t pt-2 font-semibold">
                 <span>Total</span>
                 <span className="tabular-nums">
-                  Rs. {subtotal.toLocaleString()}
+                  Rs. {grandTotal.toLocaleString()}
                 </span>
               </div>
             </div>
@@ -580,7 +778,7 @@ export default function CheckoutPage() {
               )}
               {createOrder.isPending
                 ? "Placing your order..."
-                : `Place order · Rs. ${subtotal.toLocaleString()}`}
+                : `Place order · Rs. ${grandTotal.toLocaleString()}`}
             </Button>
 
             <div className="mt-4 flex items-center justify-center gap-4 text-muted-foreground text-xs">
@@ -588,10 +786,12 @@ export default function CheckoutPage() {
                 <ShieldCheckIcon className="size-3.5" />
                 Buyer protection
               </span>
-              <span className="flex items-center gap-1">
-                <TruckIcon className="size-3.5" />
-                Free delivery
-              </span>
+              {quote !== null && deliveryCharge === 0 && (
+                <span className="flex items-center gap-1">
+                  <TruckIcon className="size-3.5" />
+                  Free delivery
+                </span>
+              )}
             </div>
           </div>
         </aside>
