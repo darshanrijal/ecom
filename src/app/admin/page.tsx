@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import {
-    IndianRupeeIcon,
+  NepaliRupeeIcon,
   ReceiptTextIcon,
   ShoppingCartIcon,
   StoreIcon,
@@ -53,7 +53,7 @@ export default async function AdminDashboardPage() {
       value: `Rs. ${stats.orders.revenue.toLocaleString()}`,
       delta: stats.deltas.revenue,
       caption: "vs. last month",
-      icon: IndianRupeeIcon,
+      icon: NepaliRupeeIcon,
     },
     {
       label: "Total orders",
