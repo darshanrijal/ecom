@@ -4,12 +4,14 @@ import {
   categoryInputSchema,
   categoryListSchema,
   categoryUpdateSchema,
+  customerListSchema,
   productCreateSchema,
   productListSchema,
   productUpdateSchema,
 } from "@/lib/admin-schema";
 import { slugify } from "@/lib/catalog";
 import { cleanupImagesIfUnused } from "@/lib/image-cleanup";
+import { isAdminEmail } from "@/lib/admin";
 import { adminProcedure, router } from "../trpc";
 import { flatAdminProcedures } from "./admin-flat";
 import {
@@ -184,6 +186,142 @@ export const adminRouter = router({
         }
         await ctx.db.category.delete({ where: { id: input.id } });
       }),
+  }),
+
+  customers: router({
+    list: adminProcedure
+      .input(customerListSchema)
+      .query(async ({ ctx, input }) => {
+        const users = await ctx.db.user.findMany({
+          take: input.limit + 1,
+          cursor: input.cursor ? { id: input.cursor } : undefined,
+          skip: input.cursor ? 1 : 0,
+          orderBy: { createdAt: "desc" },
+          where: input.search
+            ? {
+                OR: [
+                  { name: { contains: input.search, mode: "insensitive" } },
+                  { email: { contains: input.search, mode: "insensitive" } },
+                ],
+              }
+            : undefined,
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true,
+            emailVerified: true,
+            createdAt: true,
+          },
+        });
+
+        let nextCursor: string | null = null;
+        if (users.length > input.limit) {
+          const extra = users.pop();
+          nextCursor = extra?.id ?? null;
+        }
+
+        if (users.length === 0) {
+          return { items: [], nextCursor };
+        }
+
+        const orderAggs = await ctx.db.order.groupBy({
+          by: ["userId"],
+          where: { userId: { in: users.map((user) => user.id) } },
+          _count: { _all: true },
+          _sum: { totalAmount: true },
+          _max: { createdAt: true },
+        });
+        const aggById = new Map(
+          orderAggs.map((row) => [
+            row.userId,
+            {
+              orders: row._count._all,
+              totalSpent: Number(row._sum.totalAmount ?? 0),
+              lastOrderAt: row._max.createdAt,
+            },
+          ])
+        );
+
+        return {
+          items: users.map((user) => ({
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            image: user.image,
+            emailVerified: user.emailVerified,
+            createdAt: user.createdAt,
+            isAdmin: isAdminEmail(user.email),
+            orders: aggById.get(user.id)?.orders ?? 0,
+            totalSpent: aggById.get(user.id)?.totalSpent ?? 0,
+            lastOrderAt: aggById.get(user.id)?.lastOrderAt ?? null,
+          })),
+          nextCursor,
+        };
+      }),
+
+    detail: adminProcedure.input(byIdSchema).query(async ({ ctx, input }) => {
+      const user = await ctx.db.user.findUnique({
+        where: { id: input.id },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          image: true,
+          emailVerified: true,
+          createdAt: true,
+          addresses: {
+            orderBy: { province: "asc" },
+            select: {
+              id: true,
+              province: true,
+              city: true,
+              zone: true,
+              address: true,
+            },
+          },
+          orders: {
+            orderBy: { createdAt: "desc" },
+            select: {
+              id: true,
+              status: true,
+              totalAmount: true,
+              createdAt: true,
+              _count: { select: { items: true } },
+            },
+          },
+        },
+      });
+
+      if (!user) {
+        return null;
+      }
+
+      const totalSpent = user.orders.reduce(
+        (sum, order) => sum + Number(order.totalAmount),
+        0
+      );
+
+      return {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        image: user.image,
+        emailVerified: user.emailVerified,
+        createdAt: user.createdAt,
+        isAdmin: isAdminEmail(user.email),
+        totalSpent,
+        lastOrderAt: user.orders[0]?.createdAt ?? null,
+        addresses: user.addresses,
+        orders: user.orders.map((order) => ({
+          id: order.id,
+          status: order.status,
+          totalAmount: Number(order.totalAmount),
+          createdAt: order.createdAt,
+          itemCount: order._count.items,
+        })),
+      };
+    }),
   }),
 
   products: router({

@@ -46,6 +46,12 @@ export const productListSchema = z.object({
   showArchived: z.boolean().optional(),
 });
 
+export const customerListSchema = z.object({
+  limit: z.number().int().min(1).max(50).default(25),
+  cursor: z.string().cuid2().nullish(),
+  search: z.string().trim().max(200).optional(),
+});
+
 export const productUpsertSchema = z
   .object({
     name: z.string().trim().min(1).max(200),

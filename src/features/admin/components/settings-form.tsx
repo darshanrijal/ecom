@@ -4,9 +4,15 @@ import { useState, type ReactNode } from "react";
 import { CheckCircle2Icon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -117,79 +123,82 @@ export function SettingsForm() {
       </TabsList>
 
       <TabsContent value="general">
-        <div className="max-w-2xl space-y-6">
-          <div className="grid gap-4 rounded-xl border bg-card p-6 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <h2 className="font-semibold text-lg">Store details</h2>
-              <p className="mt-1 text-muted-foreground text-sm">
+        <div className="w-full space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Store details</CardTitle>
+              <CardDescription>
                 Basic information shown to customers across the store.
-              </p>
-            </div>
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <Field label="Store name" htmlFor="store-name">
+                <Input
+                  id="store-name"
+                  value={storeName}
+                  onChange={(event) => {
+                    setStoreName(event.target.value);
+                    markDirty();
+                  }}
+                />
+              </Field>
 
-            <Field label="Store name" htmlFor="store-name">
-              <Input
-                id="store-name"
-                value={storeName}
-                onChange={(event) => {
-                  setStoreName(event.target.value);
-                  markDirty();
-                }}
-              />
-            </Field>
+              <Field label="Support email" htmlFor="support-email">
+                <Input
+                  id="support-email"
+                  type="email"
+                  value={supportEmail}
+                  onChange={(event) => {
+                    setSupportEmail(event.target.value);
+                    markDirty();
+                  }}
+                />
+              </Field>
 
-            <Field label="Support email" htmlFor="support-email">
-              <Input
-                id="support-email"
-                type="email"
-                value={supportEmail}
-                onChange={(event) => {
-                  setSupportEmail(event.target.value);
-                  markDirty();
-                }}
-              />
-            </Field>
+              <Field label="Order notification email" htmlFor="orders-email">
+                <Input
+                  id="orders-email"
+                  type="email"
+                  value={ordersEmail}
+                  onChange={(event) => {
+                    setOrdersEmail(event.target.value);
+                    markDirty();
+                  }}
+                />
+              </Field>
 
-            <Field label="Order notification email" htmlFor="orders-email">
-              <Input
-                id="orders-email"
-                type="email"
-                value={ordersEmail}
-                onChange={(event) => {
-                  setOrdersEmail(event.target.value);
-                  markDirty();
-                }}
-              />
-            </Field>
+              <Field label="Low stock threshold" htmlFor="low-stock">
+                <Input
+                  id="low-stock"
+                  type="number"
+                  min={0}
+                  value={lowStock}
+                  onChange={(event) => {
+                    setLowStock(event.target.value);
+                    markDirty();
+                  }}
+                />
+              </Field>
 
-            <Field label="Low stock threshold" htmlFor="low-stock">
-              <Input
-                id="low-stock"
-                type="number"
-                min={0}
-                value={lowStock}
-                onChange={(event) => {
-                  setLowStock(event.target.value);
-                  markDirty();
-                }}
-              />
-            </Field>
-
-            <Field
-              label="Store address"
-              htmlFor="store-address"
-              hint="Shown on order receipts and invoices."
-            >
-              <Textarea
-                id="store-address"
-                rows={3}
-                value={address}
-                onChange={(event) => {
-                  setAddress(event.target.value);
-                  markDirty();
-                }}
-              />
-            </Field>
-          </div>
+              <div className="sm:col-span-2">
+                <Field
+                  label="Store address"
+                  htmlFor="store-address"
+                  hint="Shown on order receipts and invoices."
+                >
+                  <Textarea
+                    id="store-address"
+                    rows={3}
+                    value={address}
+                    onChange={(event) => {
+                      setAddress(event.target.value);
+                      markDirty();
+                    }}
+                  />
+                </Field>
+              </div>
+            </CardContent>
+          </Card>
 
           <div className="flex justify-end">
             <SaveButton saved={saved} onClick={save} />
@@ -198,99 +207,107 @@ export function SettingsForm() {
       </TabsContent>
 
       <TabsContent value="payments">
-        <div className="max-w-2xl space-y-6">
-          <div className="grid gap-4 rounded-xl border bg-card p-6 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <h2 className="font-semibold text-lg">eSewa</h2>
-              <p className="mt-1 text-muted-foreground text-sm">
-                Mirrors the ESEWA_* server environment variables.
-              </p>
-            </div>
+        <div className="w-full space-y-6">
+          <div className="grid gap-6 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">eSewa</CardTitle>
+                <CardDescription>
+                  Mirrors the ESEWA_* server environment variables.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4 sm:grid-cols-2">
+                <Field label="Merchant code" htmlFor="esewa-merchant">
+                  <Input id="esewa-merchant" defaultValue="EPAYTEST" readOnly />
+                </Field>
 
-            <Field label="Merchant code" htmlFor="esewa-merchant">
-              <Input id="esewa-merchant" defaultValue="EPAYTEST" readOnly />
-            </Field>
+                <Field label="Secret key" htmlFor="esewa-secret">
+                  <Input
+                    id="esewa-secret"
+                    type="password"
+                    defaultValue="8gBm/:&EnhH.1/q"
+                    readOnly
+                  />
+                </Field>
 
-            <Field label="Secret key" htmlFor="esewa-secret">
-              <Input
-                id="esewa-secret"
-                type="password"
-                defaultValue="8gBm/:&EnhH.1/q"
-                readOnly
-              />
-            </Field>
+                <div className="sm:col-span-2">
+                  <Field label="Environment" htmlFor="esewa-env">
+                    <Select
+                      value={esewaEnv}
+                      onValueChange={(value) => {
+                        setEsewaEnv(value ?? "sandbox");
+                        markDirty();
+                      }}
+                    >
+                      <SelectTrigger id="esewa-env" className="w-full">
+                        <SelectValue>
+                          {(value) =>
+                            value === "production"
+                              ? "Production"
+                              : "Sandbox (UAT)"
+                          }
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="sandbox">Sandbox (UAT)</SelectItem>
+                        <SelectItem value="production">Production</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </div>
+              </CardContent>
+            </Card>
 
-            <Field label="Environment" htmlFor="esewa-env">
-              <Select
-                value={esewaEnv}
-                onValueChange={(value) => {
-                  setEsewaEnv(value ?? "sandbox");
-                  markDirty();
-                }}
-              >
-                <SelectTrigger id="esewa-env" className="w-full">
-                  <SelectValue>
-                    {(value) =>
-                      value === "production" ? "Production" : "Sandbox (UAT)"
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="sandbox">Sandbox (UAT)</SelectItem>
-                  <SelectItem value="production">Production</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-          </div>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Khalti</CardTitle>
+                <CardDescription>
+                  Mirrors the KHALTI_* server environment variables.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4 sm:grid-cols-2">
+                <Field label="Public key" htmlFor="khalti-public">
+                  <Input
+                    id="khalti-public"
+                    defaultValue="3ade723de11245c7a6811451818cc3cd"
+                    readOnly
+                  />
+                </Field>
 
-          <Separator />
+                <Field label="Secret key" htmlFor="khalti-secret">
+                  <Input
+                    id="khalti-secret"
+                    type="password"
+                    defaultValue="aede381c3ef143e1b6e749d7217cb8b3"
+                    readOnly
+                  />
+                </Field>
 
-          <div className="grid gap-4 rounded-xl border bg-card p-6 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <h2 className="font-semibold text-lg">Khalti</h2>
-              <p className="mt-1 text-muted-foreground text-sm">
-                Mirrors the KHALTI_* server environment variables.
-              </p>
-            </div>
-
-            <Field label="Public key" htmlFor="khalti-public">
-              <Input
-                id="khalti-public"
-                defaultValue="3ade723de11245c7a6811451818cc3cd"
-                readOnly
-              />
-            </Field>
-
-            <Field label="Secret key" htmlFor="khalti-secret">
-              <Input
-                id="khalti-secret"
-                type="password"
-                defaultValue="aede381c3ef143e1b6e749d7217cb8b3"
-                readOnly
-              />
-            </Field>
-
-            <Field label="Environment" htmlFor="khalti-env">
-              <Select
-                value={khaltiEnv}
-                onValueChange={(value) => {
-                  setKhaltiEnv(value ?? "sandbox");
-                  markDirty();
-                }}
-              >
-                <SelectTrigger id="khalti-env" className="w-full">
-                  <SelectValue>
-                    {(value) =>
-                      value === "production" ? "Production" : "Sandbox"
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="sandbox">Sandbox</SelectItem>
-                  <SelectItem value="production">Production</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
+                <div className="sm:col-span-2">
+                  <Field label="Environment" htmlFor="khalti-env">
+                    <Select
+                      value={khaltiEnv}
+                      onValueChange={(value) => {
+                        setKhaltiEnv(value ?? "sandbox");
+                        markDirty();
+                      }}
+                    >
+                      <SelectTrigger id="khalti-env" className="w-full">
+                        <SelectValue>
+                          {(value) =>
+                            value === "production" ? "Production" : "Sandbox"
+                          }
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="sandbox">Sandbox</SelectItem>
+                        <SelectItem value="production">Production</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           <p className="text-muted-foreground text-xs">
@@ -305,30 +322,38 @@ export function SettingsForm() {
       </TabsContent>
 
       <TabsContent value="notifications">
-        <div className="max-w-2xl space-y-6">
-          <div className="divide-y rounded-xl border bg-card">
-            {notifications.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center justify-between gap-4 p-5"
-              >
-                <div>
-                  <p className="font-medium text-sm">{item.label}</p>
-                  <p className="mt-0.5 text-muted-foreground text-sm">
-                    {item.description}
-                  </p>
+        <div className="w-full space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Notifications</CardTitle>
+              <CardDescription>
+                Choose which store events send you an email.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="divide-y p-0">
+              {notifications.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between gap-4 px-6 py-5"
+                >
+                  <div>
+                    <p className="font-medium text-sm">{item.label}</p>
+                    <p className="mt-0.5 text-muted-foreground text-sm">
+                      {item.description}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={notif[item.id]}
+                    onCheckedChange={(checked) => {
+                      setNotif((prev) => ({ ...prev, [item.id]: checked }));
+                      markDirty();
+                    }}
+                    aria-label={item.label}
+                  />
                 </div>
-                <Switch
-                  checked={notif[item.id]}
-                  onCheckedChange={(checked) => {
-                    setNotif((prev) => ({ ...prev, [item.id]: checked }));
-                    markDirty();
-                  }}
-                  aria-label={item.label}
-                />
-              </div>
-            ))}
-          </div>
+              ))}
+            </CardContent>
+          </Card>
 
           <div className="flex justify-end">
             <SaveButton saved={saved} onClick={save} />

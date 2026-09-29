@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import {
-  IndianRupeeIcon,
+    IndianRupeeIcon,
   ReceiptTextIcon,
   ShoppingCartIcon,
   StoreIcon,

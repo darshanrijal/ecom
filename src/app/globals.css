@@ -119,6 +119,69 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/*
+ * Admin accent: an indigo-tinted palette scoped to the admin panel.
+ * Applied via the `admin-accent` class on the admin layout wrapper, so the
+ * storefront keeps its neutral palette while every admin screen (sidebar
+ * highlight, primary actions, focus rings and dashboard charts) shares a
+ * single indigo source of truth.
+ */
+.admin-accent {
+  --primary: oklch(0.511 0.262 276.966);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.785 0.115 274.713);
+  --accent: oklch(0.93 0.034 272.788);
+  --accent-foreground: oklch(0.398 0.195 277.366);
+  --sidebar: oklch(0.985 0.004 277);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.511 0.262 276.966);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.93 0.034 272.788);
+  --sidebar-accent-foreground: oklch(0.457 0.24 277.023);
+  --sidebar-active-background: oklch(0.511 0.262 276.966);
+  --sidebar-active-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(0.87 0.065 274.039);
+  --sidebar-ring: oklch(0.673 0.182 276.935);
+  --chart-1: oklch(0.585 0.233 277.117);
+  --chart-2: oklch(0.785 0.115 274.713);
+  --chart-3: oklch(0.673 0.182 276.935);
+  --chart-4: oklch(0.457 0.24 277.023);
+  --chart-5: oklch(0.93 0.034 272.788);
+}
+
+.dark .admin-accent {
+  --primary: oklch(0.585 0.233 277.117);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.673 0.182 276.935);
+  --accent: oklch(0.6 0.2 277 / 0.14);
+  --accent-foreground: oklch(0.93 0.034 272.788);
+  --sidebar: oklch(0.19 0.025 279);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.585 0.233 277.117);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.6 0.2 277 / 0.16);
+  --sidebar-accent-foreground: oklch(0.93 0.034 272.788);
+  --sidebar-active-background: oklch(0.585 0.233 277.117);
+  --sidebar-active-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.673 0.182 276.935);
+  --chart-1: oklch(0.673 0.182 276.935);
+  --chart-2: oklch(0.785 0.115 274.713);
+  --chart-3: oklch(0.511 0.262 276.966);
+  --chart-4: oklch(0.398 0.195 277.366);
+  --chart-5: oklch(0.457 0.24 277.023);
+}
+
+/*
+ * Current-page highlight in the sidebar: a bold indigo pill driven by the
+ * scoped token pair above. Unlayered rules win over Tailwind's `utilities`
+ * layer, so the active item keeps its indigo fill even while hovered.
+ */
+.admin-accent [data-slot="sidebar-menu-button"][data-active] {
+  background-color: var(--sidebar-active-background);
+  color: var(--sidebar-active-foreground);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50 scroll-smooth;
