@@ -53,12 +53,14 @@ function Field({
   label,
   htmlFor,
   hint,
+  error,
   className,
   children,
 }: {
   label?: ReactNode;
   htmlFor?: string;
   hint?: string;
+  error?: string | null;
   className?: string;
   children: ReactNode;
 }) {
@@ -66,7 +68,14 @@ function Field({
     <div className={cn("grid gap-1.5", className)}>
       {label ? <Label htmlFor={htmlFor}>{label}</Label> : null}
       {children}
-      {hint ? <p className="text-muted-foreground text-xs">{hint}</p> : null}
+      {error ? (
+        <p className="text-destructive text-xs" role="alert">
+          {error}
+        </p>
+      ) : null}
+      {!error && hint ? (
+        <p className="text-muted-foreground text-xs">{hint}</p>
+      ) : null}
     </div>
   );
 }
@@ -99,6 +108,33 @@ const uniqueValues = (list: string[]) =>
       list.findIndex((other) => other.toLowerCase() === value.toLowerCase()) ===
       index
   );
+
+function skuCodeError(sku: SkuDraft) {
+  return sku.code.trim() ? null : "SKU code is required";
+}
+
+function skuPriceError(sku: SkuDraft) {
+  if (sku.price === "") {
+    return "Price is required";
+  }
+  if (!Number.isFinite(Number(sku.price)) || Number(sku.price) < 0) {
+    return "Enter a valid price";
+  }
+  return null;
+}
+
+/** Keeps required-field outlines hidden until the form has been submitted. */
+const requiredError = (show: boolean, ok: boolean, message: string) =>
+  show && !ok ? message : null;
+
+/** Brings the first invalid control into view once error states are painted. */
+function scrollToFirstError() {
+  requestAnimationFrame(() => {
+    document
+      .querySelector<HTMLElement>('[aria-invalid="true"]')
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+}
 
 const comboKey = (combination: Record<string, string>) =>
   Object.entries(combination)
@@ -201,6 +237,7 @@ interface PricingVariantsCardProps {
   options: OptionDraft[];
   combos: Record<string, string>[];
   skus: SkuDraft[];
+  showErrors: boolean;
   onToggleVariants: (on: boolean) => void;
   onAddOption: () => void;
   onUpdateOption: (key: string, patch: Partial<OptionDraft>) => void;
@@ -226,7 +263,6 @@ function PricingVariantsCard(props: PricingVariantsCardProps) {
   } else if (!optionNamesUnique) {
     optionsAlert = "Option names must be unique.";
   }
-
   return (
     <Card>
       <CardHeader>
@@ -299,6 +335,7 @@ function PricingVariantsCard(props: PricingVariantsCardProps) {
                     placeholder="e.g. Black, White, Blue"
                     aria-label={`Option ${optionIndex + 1} values`}
                     aria-invalid={
+                      props.showErrors &&
                       Boolean(option.name.trim()) &&
                       splitValues(option.valuesText).length === 0
                     }
@@ -379,7 +416,10 @@ function PricingVariantsCard(props: PricingVariantsCardProps) {
                   </legend>
                 ) : null}
                 <div className="grid items-end gap-2 sm:grid-cols-[1.2fr_1fr_1fr_0.8fr]">
-                  <Field label="SKU code">
+                  <Field
+                    label="SKU code"
+                    error={props.showErrors ? skuCodeError(sku) : null}
+                  >
                     <Input
                       value={sku.code}
                       onChange={(event) =>
@@ -393,10 +433,15 @@ function PricingVariantsCard(props: PricingVariantsCardProps) {
                           : "APL-IP15-128"
                       }
                       aria-label={`SKU code ${index + 1}`}
-                      aria-invalid={!sku.code.trim()}
+                      aria-invalid={
+                        props.showErrors && Boolean(skuCodeError(sku))
+                      }
                     />
                   </Field>
-                  <Field label="Price (Rs.)">
+                  <Field
+                    label="Price (Rs.)"
+                    error={props.showErrors ? skuPriceError(sku) : null}
+                  >
                     <Input
                       type="number"
                       min={0}
@@ -408,7 +453,9 @@ function PricingVariantsCard(props: PricingVariantsCardProps) {
                       }
                       placeholder="0"
                       aria-label={`Price ${index + 1}`}
-                      aria-invalid={sku.price === ""}
+                      aria-invalid={
+                        props.showErrors && Boolean(skuPriceError(sku))
+                      }
                     />
                   </Field>
                   <Field
@@ -492,6 +539,7 @@ interface CategoryFieldProps {
   categories: RouterOutputs["admin"]["categories"]["list"] | undefined;
   value: string;
   onChange: (value: string) => void;
+  error?: string | null;
   className?: string;
 }
 
@@ -499,11 +547,17 @@ function CategoryField({
   categories,
   value,
   onChange,
+  error,
   className,
 }: CategoryFieldProps) {
   const hasCategories = Boolean(categories && categories.length > 0);
   return (
-    <Field label="Category" htmlFor="product-category" className={className}>
+    <Field
+      label="Category"
+      htmlFor="product-category"
+      error={error}
+      className={className}
+    >
       <div className="flex items-center gap-2">
         {hasCategories ? (
           <>
@@ -511,7 +565,11 @@ function CategoryField({
               value={value}
               onValueChange={(next) => onChange(next ?? "")}
             >
-              <SelectTrigger id="product-category" className="flex-1">
+              <SelectTrigger
+                id="product-category"
+                className="flex-1"
+                aria-invalid={Boolean(error)}
+              >
                 <SelectValue placeholder="Select a category">
                   {(selected) =>
                     selected
@@ -623,6 +681,7 @@ export function ProductForm({ product }: ProductFormProps) {
     initOptions(product)
   );
   const [skus, setSkus] = useState<SkuDraft[]>(() => initSkus(product));
+  const [showErrors, setShowErrors] = useState(false);
   const slugTouched = useRef(Boolean(product));
 
   const editing = Boolean(product);
@@ -726,6 +785,17 @@ export function ProductForm({ product }: ProductFormProps) {
     setOptions([]);
   };
 
+  const nameError = requiredError(
+    showErrors,
+    Boolean(name.trim()),
+    "Name is required"
+  );
+  const categoryError = requiredError(
+    showErrors,
+    Boolean(categoryId),
+    "Pick a category"
+  );
+
   const save = async () => {
     const optionsPayload = definedOptions.map((option) => ({
       name: option.name.trim(),
@@ -781,6 +851,15 @@ export function ProductForm({ product }: ProductFormProps) {
 
   const isSaving = createProduct.isPending || updateProduct.isPending;
 
+  const handleSave = () => {
+    if (invalid) {
+      setShowErrors(true);
+      scrollToFirstError();
+      return;
+    }
+    save();
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -806,13 +885,13 @@ export function ProductForm({ product }: ProductFormProps) {
           <CardTitle className="text-base">Details</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Field label="Name" htmlFor="product-name">
+          <Field label="Name" htmlFor="product-name" error={nameError}>
             <Input
               id="product-name"
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="e.g. iPhone 15"
-              aria-invalid={!name.trim()}
+              aria-invalid={Boolean(nameError)}
             />
           </Field>
 
@@ -841,6 +920,7 @@ export function ProductForm({ product }: ProductFormProps) {
             categories={categories.data}
             value={categoryId}
             onChange={setCategoryId}
+            error={categoryError}
           />
 
           <ProductStatusField
@@ -884,6 +964,7 @@ export function ProductForm({ product }: ProductFormProps) {
         options={options}
         combos={combos}
         skus={skus}
+        showErrors={showErrors}
         onToggleVariants={toggleVariants}
         onAddOption={addOption}
         onUpdateOption={updateOption}
@@ -896,7 +977,12 @@ export function ProductForm({ product }: ProductFormProps) {
       />
 
       <div className="sticky bottom-0 z-10 -mx-1 rounded-md border bg-background/95 px-3 py-3 backdrop-blur sm:-mx-2 sm:px-4">
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {showErrors && invalid ? (
+            <p className="mr-auto text-destructive text-sm" role="alert">
+              Fix the highlighted fields to continue.
+            </p>
+          ) : null}
           <Button
             variant="outline"
             type="button"
@@ -905,7 +991,7 @@ export function ProductForm({ product }: ProductFormProps) {
           >
             Cancel
           </Button>
-          <Button type="button" onClick={save} disabled={invalid || isSaving}>
+          <Button type="button" onClick={handleSave} disabled={isSaving}>
             {isSaving ? <Loader2Icon className="animate-spin" /> : null}
             {editing ? "Save changes" : "Create product"}
           </Button>
