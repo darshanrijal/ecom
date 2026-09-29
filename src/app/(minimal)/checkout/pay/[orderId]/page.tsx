@@ -6,12 +6,14 @@ import { CreditCardIcon } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { PayClient } from "./page.client";
+import { preventUnauthorized } from "@/lib/auth";
 
 export default async function PayPage({
   params,
 }: {
   params: Promise<{ orderId: string }>;
 }) {
+  await preventUnauthorized();
   const { orderId } = await params;
   api.orders.getById.prefetch({ orderId });
 
