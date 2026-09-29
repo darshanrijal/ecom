@@ -66,7 +66,7 @@ function filterOrders(
     query: string;
     status: string;
     gateway: string;
-  }
+  },
 ) {
   const query = filters.query.trim().toLowerCase();
 
