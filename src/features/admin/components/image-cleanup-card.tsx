@@ -2,6 +2,14 @@
 
 import { trpc } from "@/__rpc/client";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toast";
@@ -48,10 +56,10 @@ export function ImageCleanupCard() {
 
   let storageSummary: ReactNode;
   if (usage.isPending) {
-    storageSummary = <Skeleton className="mt-4 h-16 rounded-xl" />;
+    storageSummary = <Skeleton className="h-16 rounded-xl" />;
   } else if (usage.data) {
     storageSummary = (
-      <div className="mt-4 space-y-3">
+      <div className="space-y-3">
         <div className="flex items-baseline justify-between text-sm">
           <span className="text-muted-foreground">
             {formatBytes(usage.data.totalBytes)} used
@@ -73,34 +81,33 @@ export function ImageCleanupCard() {
     );
   } else {
     storageSummary = (
-      <p className="mt-4 text-muted-foreground text-sm">
+      <p className="text-muted-foreground text-sm">
         Storage usage is unavailable right now.
       </p>
     );
   }
 
   return (
-    <section className="rounded-2xl border bg-card p-5 shadow-xs">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="font-semibold text-lg">Image storage</h2>
-          <p className="mt-1 text-muted-foreground text-sm">
-            Hosted on UploadThing. Sweep deletes images that no product, SKU or
-            avatar uses.
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={sweep.isPending || usage.isPending}
-          onClick={() => sweep.mutate()}
-        >
-          {sweep.isPending ? <Spinner /> : <TrashIcon className="size-4" />}
-          {sweep.isPending ? "Sweeping…" : "Sweep unused images"}
-        </Button>
-      </div>
-
-      {storageSummary}
-    </section>
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Image storage</CardTitle>
+        <CardDescription>
+          Hosted on UploadThing. Sweep deletes images that no product, SKU or
+          avatar uses.
+        </CardDescription>
+        <CardAction>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={sweep.isPending || usage.isPending}
+            onClick={() => sweep.mutate()}
+          >
+            {sweep.isPending ? <Spinner /> : <TrashIcon className="size-4" />}
+            {sweep.isPending ? "Sweeping…" : "Sweep unused images"}
+          </Button>
+        </CardAction>
+      </CardHeader>
+      <CardContent>{storageSummary}</CardContent>
+    </Card>
   );
 }

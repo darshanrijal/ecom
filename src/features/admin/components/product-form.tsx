@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowLeftIcon, Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -17,12 +17,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { type RouterOutputs, trpc } from "@/__rpc/client";
 import { slugify } from "@/lib/catalog";
 import { cn } from "@/lib/utils";
+import { CategoryCreateDialog } from "./category-create-dialog";
 import { ProductImageField } from "./product-image-field";
 
 type EditData = NonNullable<RouterOutputs["admin"]["products"]["get"]>;
@@ -54,11 +56,11 @@ function Field({
   className,
   children,
 }: {
-  label?: string;
+  label?: ReactNode;
   htmlFor?: string;
   hint?: string;
   className?: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div className={cn("grid gap-1.5", className)}>
@@ -410,8 +412,14 @@ function PricingVariantsCard(props: PricingVariantsCardProps) {
                     />
                   </Field>
                   <Field
-                    label="MRP (Rs.)"
-                    hint="Optional — the original price when discounted."
+                    label={
+                      <span className="inline-flex items-center gap-1.5">
+                        MRP (Rs.)
+                        <span className="font-normal text-muted-foreground">
+                          Optional
+                        </span>
+                      </span>
+                    }
                   >
                     <Input
                       type="number"
@@ -477,6 +485,124 @@ function PricingVariantsCard(props: PricingVariantsCardProps) {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+interface CategoryFieldProps {
+  categories: RouterOutputs["admin"]["categories"]["list"] | undefined;
+  value: string;
+  onChange: (value: string) => void;
+  className?: string;
+}
+
+function CategoryField({
+  categories,
+  value,
+  onChange,
+  className,
+}: CategoryFieldProps) {
+  const hasCategories = Boolean(categories && categories.length > 0);
+  return (
+    <Field label="Category" htmlFor="product-category" className={className}>
+      <div className="flex items-center gap-2">
+        {hasCategories ? (
+          <>
+            <Select
+              value={value}
+              onValueChange={(next) => onChange(next ?? "")}
+            >
+              <SelectTrigger id="product-category" className="flex-1">
+                <SelectValue placeholder="Select a category">
+                  {(selected) =>
+                    selected
+                      ? (categories?.find(
+                          (category) => category.id === selected
+                        )?.name ?? selected)
+                      : "Select a category"
+                  }
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {categories?.map((category) => (
+                  <SelectItem key={category.id} value={category.id}>
+                    {category.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <CategoryCreateDialog
+              onCreated={(category) => onChange(category.id)}
+            />
+          </>
+        ) : (
+          <>
+            <p className="flex-1 rounded-md bg-muted p-3 text-muted-foreground text-sm">
+              No categories yet — create one right here.
+            </p>
+            <CategoryCreateDialog
+              onCreated={(category) => onChange(category.id)}
+            />
+          </>
+        )}
+      </div>
+    </Field>
+  );
+}
+
+function StatusOptionCard({
+  value,
+  title,
+  description,
+}: {
+  value: string;
+  title: string;
+  description: string;
+}) {
+  const controlId = `product-status-${value}`;
+  return (
+    <label
+      htmlFor={controlId}
+      className="flex cursor-pointer select-none items-start gap-3 rounded-md border border-input p-3 shadow-xs transition-[border-color,background-color] has-data-checked:border-primary/40 has-focus-visible:border-ring has-data-checked:bg-primary/5 has-focus-visible:ring-3 has-focus-visible:ring-ring/50"
+    >
+      <RadioGroupItem value={value} id={controlId} className="mt-0.5" />
+      <span className="grid gap-0.5">
+        <span className="font-medium text-sm">{title}</span>
+        <span className="text-muted-foreground text-xs">{description}</span>
+      </span>
+    </label>
+  );
+}
+
+function ProductStatusField({
+  isPublished,
+  onChange,
+}: {
+  isPublished: boolean;
+  onChange: (on: boolean) => void;
+}) {
+  return (
+    <Field
+      label="Product status"
+      hint="Choose whether this product is visible to customers."
+      className="sm:col-span-2"
+    >
+      <RadioGroup
+        value={isPublished ? "published" : "draft"}
+        onValueChange={(value) => onChange(value === "published")}
+        className="sm:grid-cols-2"
+      >
+        <StatusOptionCard
+          value="draft"
+          title="Draft"
+          description="Hidden from storefront"
+        />
+        <StatusOptionCard
+          value="published"
+          title="Published"
+          description="Visible to customers"
+        />
+      </RadioGroup>
+    </Field>
   );
 }
 
@@ -710,58 +836,17 @@ export function ProductForm({ product }: ProductFormProps) {
             />
           </Field>
 
-          <Field label="Category" htmlFor="product-category">
-            {categories.data && categories.data.length > 0 ? (
-              <Select
-                value={categoryId}
-                onValueChange={(value) => setCategoryId(value ?? "")}
-              >
-                <SelectTrigger id="product-category">
-                  <SelectValue placeholder="Select a category">
-                    {(value) =>
-                      value
-                        ? (categories.data?.find(
-                            (category) => category.id === value
-                          )?.name ?? value)
-                        : "Select a category"
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.data.map((category) => (
-                    <SelectItem key={category.id} value={category.id}>
-                      {category.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <p className="rounded-md bg-muted p-3 text-muted-foreground text-sm">
-                No categories yet — create one under{" "}
-                <Link
-                  href="/admin/categories"
-                  className="font-medium text-primary underline underline-offset-4"
-                >
-                  Categories
-                </Link>{" "}
-                first.
-              </p>
-            )}
-          </Field>
+          <CategoryField
+            className="sm:col-span-2"
+            categories={categories.data}
+            value={categoryId}
+            onChange={setCategoryId}
+          />
 
-          <div className="flex items-center justify-between rounded-md border p-3">
-            <div>
-              <p className="font-medium text-sm">Published</p>
-              <p className="text-muted-foreground text-xs">
-                Visible to customers on the storefront.
-              </p>
-            </div>
-            <Switch
-              checked={isPublished}
-              onCheckedChange={setIsPublished}
-              aria-label="Published"
-            />
-          </div>
+          <ProductStatusField
+            isPublished={isPublished}
+            onChange={setIsPublished}
+          />
 
           <Field
             label="Description"
@@ -815,6 +900,7 @@ export function ProductForm({ product }: ProductFormProps) {
           <Button
             variant="outline"
             type="button"
+            nativeButton={false}
             render={<Link href="/admin/products" />}
           >
             Cancel

@@ -34,7 +34,11 @@ export default function AdminEditProductPage() {
         <p className="text-muted-foreground text-sm">
           It may have been deleted, or the address is wrong.
         </p>
-        <Button variant="outline" render={<Link href="/admin/products" />}>
+        <Button
+          variant="outline"
+          nativeButton={false}
+          render={<Link href="/admin/products" />}
+        >
           Back to products
         </Button>
       </div>

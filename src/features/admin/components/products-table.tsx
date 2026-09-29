@@ -32,8 +32,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableHeader, TableRow } from "@/components/ui/table";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { toast } from "@/components/ui/toast";
 import { type RouterOutputs, trpc } from "@/__rpc/client";
 import {
@@ -84,7 +84,7 @@ export function ProductsTable() {
     },
     {
       getNextPageParam: (lastPage) => lastPage.nextCursor,
-    }
+    },
   );
 
   const archiveProduct = trpc.admin.products.archive.useMutation();
@@ -131,6 +131,17 @@ export function ProductsTable() {
 
   return (
     <div className="flex flex-col gap-3">
+      <div className="flex justify-center">
+        <ToggleGroup
+          size="sm"
+          aria-label="View products"
+          value={showArchived ? ["archived"] : ["active"]}
+          onValueChange={(value) => setShowArchived(value.includes("archived"))}
+        >
+          <ToggleGroupItem value="active">Active</ToggleGroupItem>
+          <ToggleGroupItem value="archived">Archived</ToggleGroupItem>
+        </ToggleGroup>
+      </div>
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
         <div className="relative min-w-0 flex-1">
           <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -151,7 +162,7 @@ export function ProductsTable() {
                 {(value) =>
                   value
                     ? (categories.data?.find(
-                        (category) => category.id === value
+                        (category) => category.id === value,
                       )?.name ?? value)
                     : "All categories"
                 }
@@ -179,18 +190,6 @@ export function ProductsTable() {
               <SelectItem value="Draft">Draft</SelectItem>
             </SelectContent>
           </Select>
-          <label
-            className="flex cursor-pointer items-center gap-2 text-sm"
-            htmlFor="show-archived"
-          >
-            <Switch
-              id="show-archived"
-              checked={showArchived}
-              onCheckedChange={setShowArchived}
-              aria-label="Show archived products"
-            />
-            Archived
-          </label>
           <Button
             size="sm"
             nativeButton={false}

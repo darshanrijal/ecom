@@ -18,7 +18,7 @@ export interface RevenuePoint {
 const chartConfig = {
   revenue: {
     label: "Revenue",
-    color: "oklch(75% 0.183 55.934)",
+    color: "var(--chart-1)",
   },
 } satisfies ChartConfig;
 

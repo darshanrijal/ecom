@@ -20,7 +20,7 @@ export default async function AdminLayout({
   }
 
   return (
-    <SidebarProvider>
+    <SidebarProvider className="admin-accent">
       <AdminSidebar />
       <SidebarInset>
         <AdminHeader />
