@@ -3,8 +3,10 @@ import { cn } from "@/lib/utils";
 import {
   ORDER_STATUS_LABELS,
   PAYMENT_METHOD_LABELS,
+  REFUND_STATUS_LABELS,
   type AdminOrderStatus,
   type AdminPaymentMethod,
+  type AdminRefundStatus,
 } from "@/lib/admin-schema";
 
 const ORDER_STATUS_STYLES: Record<AdminOrderStatus, string> = {
@@ -23,6 +25,13 @@ const GATEWAY_STYLES: Record<AdminPaymentMethod, string> = {
   ESEWA: "bg-[#60BB46]/15 text-[#3d8f35] dark:text-[#7ed45f]",
   KHALTI: "bg-[#5C2D91]/15 text-[#5C2D91] dark:text-[#b386e0]",
   COD: "bg-muted text-muted-foreground",
+};
+
+const REFUND_STATUS_STYLES: Record<AdminRefundStatus, string> = {
+  PENDING: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+  PROCESSING: "bg-sky-500/15 text-sky-700 dark:text-sky-400",
+  REFUNDED: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+  FAILED: "bg-red-500/15 text-red-700 dark:text-red-400",
 };
 
 const PRODUCT_STATUS_STYLES: Record<"Published" | "Draft", string> = {
@@ -47,6 +56,16 @@ export function GatewayBadge({ gateway }: { gateway: AdminPaymentMethod }) {
       className={cn("rounded-full font-medium", GATEWAY_STYLES[gateway])}
     >
       {PAYMENT_METHOD_LABELS[gateway]}
+    </Badge>
+  );
+}
+
+export function RefundStatusBadge({ status }: { status: AdminRefundStatus }) {
+  return (
+    <Badge
+      className={cn("rounded-full font-medium", REFUND_STATUS_STYLES[status])}
+    >
+      {REFUND_STATUS_LABELS[status]}
     </Badge>
   );
 }

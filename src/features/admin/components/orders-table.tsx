@@ -5,7 +5,6 @@ import {
   EyeIcon,
   ListChecksIcon,
   MoreHorizontalIcon,
-  PackageIcon,
   UserPlusIcon,
   XCircleIcon,
 } from "lucide-react";
@@ -41,11 +40,14 @@ import {
 } from "@/features/admin/components/status-badge";
 import {
   OrderAssignDialog,
+  OrderCancelDialog,
   OrderStatusDialog,
 } from "@/features/admin/components/order-action-dialogs";
+import { OrderDetailDialog } from "@/features/admin/components/order-detail-dialog";
 import {
   ORDER_STATUS_LABELS,
   ORDER_STATUSES,
+  ORDER_TRANSITIONS,
   PAYMENT_METHOD_LABELS,
   PAYMENT_METHODS,
 } from "@/lib/admin-schema";
@@ -66,7 +68,7 @@ function filterOrders(
     query: string;
     status: string;
     gateway: string;
-  },
+  }
 ) {
   const query = filters.query.trim().toLowerCase();
 
@@ -95,6 +97,8 @@ export function OrdersTable() {
   const [gateway, setGateway] = useState("all");
   const [assignOrder, setAssignOrder] = useState<AdminOrder | null>(null);
   const [statusOrder, setStatusOrder] = useState<AdminOrder | null>(null);
+  const [cancelOrder, setCancelOrder] = useState<AdminOrder | null>(null);
+  const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
 
   const ordersQuery = trpc.admin.listOrders.useQuery({ limit: 100 });
   const orders = ordersQuery.data?.orders ?? [];
@@ -249,13 +253,11 @@ export function OrdersTable() {
                       />
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem
-                          render={
-                            <button type="button">
-                              <EyeIcon className="size-4" />
-                              View details
-                            </button>
-                          }
-                        />
+                          onClick={() => setDetailOrderId(order.id)}
+                        >
+                          <EyeIcon className="size-4" />
+                          View details
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => setStatusOrder(order)}>
                           <ListChecksIcon className="size-4" />
                           Change status…
@@ -264,24 +266,20 @@ export function OrdersTable() {
                           <UserPlusIcon className="size-4" />
                           Assign delivery man…
                         </DropdownMenuItem>
-                        <DropdownMenuItem
-                          render={
-                            <button type="button">
-                              <PackageIcon className="size-4" />
-                              Mark as shipped
-                            </button>
-                          }
-                        />
+
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
-                          className="text-red-600 dark:text-red-400"
-                          render={
-                            <button type="button">
-                              <XCircleIcon className="size-4" />
-                              Cancel order
-                            </button>
+                          disabled={
+                            !ORDER_TRANSITIONS[order.status].includes(
+                              "CANCELLED"
+                            )
                           }
-                        />
+                          className="text-red-600 dark:text-red-400"
+                          onClick={() => setCancelOrder(order)}
+                        >
+                          <XCircleIcon className="size-4" />
+                          Cancel order
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </DataTableCell>
@@ -307,6 +305,18 @@ export function OrdersTable() {
         <OrderStatusDialog
           order={statusOrder}
           onClose={() => setStatusOrder(null)}
+        />
+      )}
+      {cancelOrder !== null && (
+        <OrderCancelDialog
+          order={cancelOrder}
+          onClose={() => setCancelOrder(null)}
+        />
+      )}
+      {detailOrderId !== null && (
+        <OrderDetailDialog
+          orderId={detailOrderId}
+          onClose={() => setDetailOrderId(null)}
         />
       )}
     </div>

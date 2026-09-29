@@ -6,6 +6,16 @@ import Link from "next/link";
 import { type RouterOutputs, trpc } from "@/__rpc/client";
 import { Button } from "@/components/ui/button";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -24,6 +34,7 @@ import { toast } from "@/components/ui/toast";
 import {
   ORDER_STATUS_LABELS,
   ORDER_TRANSITIONS,
+  PAYMENT_METHOD_LABELS,
   type AdminOrderStatus,
 } from "@/lib/admin-schema";
 
@@ -251,5 +262,74 @@ export function OrderStatusDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+export function OrderCancelDialog({
+  order,
+  onClose,
+}: {
+  order: AdminOrder;
+  onClose: () => void;
+}) {
+  const invalidateOrders = useInvalidateOrders();
+  const updateStatus = trpc.admin.updateOrderStatus.useMutation();
+
+  const paid = order.paidAt !== null;
+  const gateway = PAYMENT_METHOD_LABELS[order.paymentMethod];
+
+  async function confirm() {
+    try {
+      await updateStatus.mutateAsync({
+        orderId: order.id,
+        status: "CANCELLED",
+      });
+      await invalidateOrders();
+      toast.add({
+        title: "Order cancelled",
+        description: paid
+          ? `Refund of Rs. ${order.totalAmount.toLocaleString()} is now pending.`
+          : "Items were returned to stock.",
+        type: "success",
+      });
+      onClose();
+    } catch (error) {
+      toast.add({
+        title: "Couldn't cancel the order",
+        description:
+          error instanceof Error ? error.message : "Something went wrong.",
+        type: "error",
+      });
+    }
+  }
+
+  return (
+    <AlertDialog open onOpenChange={(open) => !open && onClose()}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Cancel this order?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {describeOrder(order)} — the items go back to stock and the order
+            can&apos;t be reopened.
+            {paid ? (
+              <>
+                {" "}
+                Rs. {order.totalAmount.toLocaleString()} was already paid via{" "}
+                {gateway}, so a refund will be opened for the full amount.
+              </>
+            ) : null}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Keep order</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={updateStatus.isPending}
+            onClick={confirm}
+          >
+            {updateStatus.isPending ? "Cancelling…" : "Cancel order"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

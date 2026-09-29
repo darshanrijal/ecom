@@ -201,6 +201,38 @@ export const PAYMENT_METHOD_LABELS: Record<AdminPaymentMethod, string> = {
 };
 
 // ---------------------------------------------------------------------------
+// Refund metadata — mirrors the Refund table. Refunds only exist once money
+// has actually been collected (paidAt set) and the order was cancelled or
+// marked refunded; the admin UI advances them through this transition map.
+// ---------------------------------------------------------------------------
+
+export const REFUND_STATUSES = [
+  "PENDING",
+  "PROCESSING",
+  "REFUNDED",
+  "FAILED",
+] as const;
+
+export type AdminRefundStatus = (typeof REFUND_STATUSES)[number];
+
+export const REFUND_STATUS_LABELS: Record<AdminRefundStatus, string> = {
+  PENDING: "Pending",
+  PROCESSING: "Processing",
+  REFUNDED: "Refunded",
+  FAILED: "Failed",
+};
+
+export const REFUND_TRANSITIONS: Record<
+  AdminRefundStatus,
+  readonly AdminRefundStatus[]
+> = {
+  PENDING: ["PROCESSING", "REFUNDED", "FAILED"],
+  PROCESSING: ["PENDING", "REFUNDED", "FAILED"],
+  FAILED: ["PENDING", "PROCESSING"],
+  REFUNDED: [],
+};
+
+// ---------------------------------------------------------------------------
 // Admin form schemas (react-hook-form + zodResolver). The string-typed fields
 // mirror what the inputs hold; the output types carry parsed numbers.
 // ---------------------------------------------------------------------------

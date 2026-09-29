@@ -3,8 +3,16 @@
 import { type RouterOutputs, trpc } from "@/__rpc/client";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  CancelOrderDialog,
+  ChangePaymentDialog,
+} from "@/features/orders/components/order-actions";
 import { ProductImage } from "@/features/products/components/product-image";
 import { authClient } from "@/lib/auth-client";
+import {
+  canChangePaymentMethod,
+  isCustomerCancellable,
+} from "@/lib/order-schema";
 import { cn } from "@/lib/utils";
 import { useOrderStore } from "@/stores/order-store";
 import { format } from "date-fns";
@@ -37,6 +45,26 @@ const PAYMENT_LABELS: Record<string, string> = {
   ESEWA: "eSewa",
   KHALTI: "Khalti",
 };
+
+const REFUND_STYLES: Record<string, string> = {
+  PENDING: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+  PROCESSING: "bg-blue-500/15 text-blue-700 dark:text-blue-400",
+  REFUNDED: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+  FAILED: "bg-red-500/15 text-red-700 dark:text-red-400",
+};
+
+function RefundPill({ status }: { status: string }) {
+  return (
+    <span
+      className={cn(
+        "rounded-full px-2.5 py-1 font-semibold text-[11px]",
+        REFUND_STYLES[status] ?? "bg-muted text-muted-foreground"
+      )}
+    >
+      {status}
+    </span>
+  );
+}
 
 function isAwaitingPayment(order: { status: string; paymentMethod: string }) {
   return (
@@ -149,16 +177,13 @@ function EmptyOrders() {
   );
 }
 
-function OrderCard({
+function PaymentDetails({
   order,
-  defaultOpen,
+  onChangePayment,
 }: {
   order: Order;
-  defaultOpen: boolean;
+  onChangePayment: () => void;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
-  const awaitingPayment = isAwaitingPayment(order);
-
   let paymentDetail = `Rs. ${order.totalAmount.toLocaleString()} due on delivery`;
   if (order.status === "PAID") {
     paymentDetail = order.paidAt
@@ -168,6 +193,70 @@ function OrderCard({
   if (isAwaitingPayment(order)) {
     paymentDetail = "Awaiting wallet payment";
   }
+
+  return (
+    <div>
+      <h3 className="font-medium text-sm">Payment</h3>
+      <p className="mt-1.5 text-sm">
+        {PAYMENT_LABELS[order.paymentMethod] ?? order.paymentMethod}
+      </p>
+      <p className="text-muted-foreground text-xs">{paymentDetail}</p>
+      {canChangePaymentMethod(order) && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mt-2 h-7"
+          onClick={onChangePayment}
+        >
+          Change payment method
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function RefundDetails({ refund }: { refund: Order["refund"] }) {
+  if (!refund) {
+    return null;
+  }
+
+  let summary = " — your bank/wallet will credit this shortly";
+  if (refund.status === "REFUNDED") {
+    summary = " returned to your original payment method";
+  } else if (refund.status === "FAILED") {
+    summary = " — the refund failed, contact support";
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-2">
+        <h3 className="font-medium text-sm">Refund</h3>
+        <RefundPill status={refund.status} />
+      </div>
+      <p className="mt-1.5 text-sm">
+        Rs. {refund.amount.toLocaleString()}
+        {summary}
+      </p>
+      <p className="text-muted-foreground text-xs">
+        {refund.reason ? `${refund.reason} · ` : ""}
+        Updated {format(new Date(refund.updatedAt), "d MMM yyyy, h:mm a")}
+      </p>
+    </div>
+  );
+}
+
+function OrderCard({
+  order,
+  defaultOpen,
+}: {
+  order: Order;
+  defaultOpen: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const [dialog, setDialog] = useState<"cancel" | "change" | null>(null);
+  const awaitingPayment = isAwaitingPayment(order);
+  const cancellable = isCustomerCancellable(order.status);
 
   return (
     <article className="overflow-hidden rounded-2xl border bg-card shadow-xs">
@@ -246,13 +335,11 @@ function OrderCard({
               )}
             </div>
 
-            <div>
-              <h3 className="font-medium text-sm">Payment</h3>
-              <p className="mt-1.5 text-sm">
-                {PAYMENT_LABELS[order.paymentMethod] ?? order.paymentMethod}
-              </p>
-              <p className="text-muted-foreground text-xs">{paymentDetail}</p>
-            </div>
+            <PaymentDetails
+              order={order}
+              onChangePayment={() => setDialog("change")}
+            />
+            <RefundDetails refund={order.refund} />
 
             <div className="space-y-1.5 border-t pt-3 text-sm">
               <div className="flex justify-between text-muted-foreground">
@@ -292,6 +379,20 @@ function OrderCard({
               </div>
             </div>
           </div>
+
+          {cancellable && (
+            <div className="col-span-full flex justify-end border-t pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-destructive hover:border-red-300 hover:text-destructive"
+                onClick={() => setDialog("cancel")}
+              >
+                Cancel order
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
@@ -300,15 +401,33 @@ function OrderCard({
           <p className="text-amber-800 text-xs dark:text-amber-300">
             Payment pending — your order isn&apos;t confirmed yet.
           </p>
-          <Button
-            size="sm"
-            className="h-8"
-            nativeButton={false}
-            render={
-              <Link href={`/checkout/pay/${order.id}`}>Complete payment</Link>
-            }
-          />
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-8 text-amber-900 dark:text-amber-200"
+              onClick={() => setDialog("change")}
+            >
+              Change method
+            </Button>
+            <Button
+              size="sm"
+              className="h-8"
+              nativeButton={false}
+              render={
+                <Link href={`/checkout/pay/${order.id}`}>Complete payment</Link>
+              }
+            />
+          </div>
         </div>
+      )}
+
+      {dialog === "cancel" && (
+        <CancelOrderDialog order={order} onClose={() => setDialog(null)} />
+      )}
+      {dialog === "change" && (
+        <ChangePaymentDialog order={order} onClose={() => setDialog(null)} />
       )}
     </article>
   );

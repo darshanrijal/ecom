@@ -18,6 +18,7 @@ import {
   LocateFixedIcon,
   LockIcon,
   MapPinIcon,
+  MapPinnedIcon,
   ShieldCheckIcon,
   TruckIcon,
   PackageXIcon,
@@ -36,6 +37,7 @@ import { cn } from "@/lib/utils";
 import { useOrderStore } from "@/stores/order-store";
 import { ProductImage } from "@/features/products/components/product-image";
 import { useCartSkus } from "@/hooks/use-cart-skus";
+import { useAddressGeocode } from "@/hooks/use-address-geocode";
 
 type ShippingFormInput = z.input<typeof shippingInfoFormSchema>;
 type ShippingFormValues = z.output<typeof shippingInfoFormSchema>;
@@ -79,6 +81,16 @@ function previewQuote(
     customer: { lat, lng },
     ratePerKm: settings?.ratePerKm ?? null,
   });
+}
+
+function geolocationErrorMessage(error: GeolocationPositionError) {
+  if (error.code === 1) {
+    return "Location access was blocked. Allow it for this site in your browser settings — or use your address instead.";
+  }
+  if (error.code === 3) {
+    return "Finding your location timed out. Try again, or use your address instead.";
+  }
+  return "Your location couldn't be determined right now. Use your address instead, or enter the coordinates manually.";
 }
 
 function describeDelivery(
@@ -148,6 +160,7 @@ export default function CheckoutPage() {
   const createOrder = trpc.orders.create.useMutation();
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("COD");
   const [locating, setLocating] = useState(false);
+  const [coordsManual, setCoordsManual] = useState(false);
 
   const { data: deliverySettings } = trpc.delivery.getSettings.useQuery();
 
@@ -178,13 +191,45 @@ export default function CheckoutPage() {
     quote
   );
 
+  const watchAddress = form.watch("address");
+  const watchCity = form.watch("city");
+  const watchProvince = form.watch("province");
+  const { geocoding, geocodeNow, canGeocode } = useAddressGeocode({
+    address: watchAddress,
+    city: watchCity,
+    province: watchProvince,
+    skip: coordsManual,
+    onResult: (coords) => {
+      form.setValue("deliveryLat", coords.lat.toFixed(6), {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+      form.setValue("deliveryLng", coords.lng.toFixed(6), {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+    },
+  });
+
+  function fillCoords(lat: number, lng: number) {
+    setCoordsManual(true);
+    form.setValue("deliveryLat", lat.toFixed(6), {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+    form.setValue("deliveryLng", lng.toFixed(6), {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+  }
+
   function handleLocate() {
     if (!navigator.geolocation) {
       toast.add({
         type: "error",
         title: "Location not supported",
         description:
-          "Your browser can't share a location. Enter the coordinates manually.",
+          "Your browser can't share a location. Use your address instead.",
       });
       return;
     }
@@ -192,26 +237,31 @@ export default function CheckoutPage() {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setLocating(false);
-        form.setValue("deliveryLat", position.coords.latitude.toFixed(6), {
-          shouldValidate: true,
-          shouldDirty: true,
-        });
-        form.setValue("deliveryLng", position.coords.longitude.toFixed(6), {
-          shouldValidate: true,
-          shouldDirty: true,
-        });
+        fillCoords(position.coords.latitude, position.coords.longitude);
       },
-      () => {
+      (error) => {
         setLocating(false);
         toast.add({
           type: "error",
           title: "Couldn't get your location",
-          description:
-            "Allow location access, or enter the latitude and longitude manually.",
+          description: geolocationErrorMessage(error),
         });
       },
-      { enableHighAccuracy: true, timeout: 10_000 }
+      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 }
     );
+  }
+
+  async function handleGeocode() {
+    setCoordsManual(false);
+    if (await geocodeNow()) {
+      return;
+    }
+    toast.add({
+      type: "error",
+      title: "No location found",
+      description:
+        "Couldn't match that address. Adjust it, or enter the coordinates manually.",
+    });
   }
 
   const prefilled = useRef(false);
@@ -521,6 +571,10 @@ export default function CheckoutPage() {
                       autoComplete="off"
                       placeholder="27.7172"
                       aria-invalid={fieldState.invalid}
+                      onChange={(event) => {
+                        setCoordsManual(true);
+                        field.onChange(event);
+                      }}
                     />
                     {!!fieldState.invalid && (
                       <FieldError errors={[fieldState.error]} />
@@ -542,6 +596,10 @@ export default function CheckoutPage() {
                       autoComplete="off"
                       placeholder="85.3240"
                       aria-invalid={fieldState.invalid}
+                      onChange={(event) => {
+                        setCoordsManual(true);
+                        field.onChange(event);
+                      }}
                     />
                     {!!fieldState.invalid && (
                       <FieldError errors={[fieldState.error]} />
@@ -554,24 +612,41 @@ export default function CheckoutPage() {
                 <div className="flex items-start gap-2 text-muted-foreground text-sm">
                   <MapPinIcon className="mt-0.5 size-4 shrink-0" />
                   <p>
-                    Set the drop-off point so we can calculate the delivery
-                    distance and charge.
+                    We fill the coordinates from your address automatically — or
+                    use a button to set them yourself.
+                    {geocoding ? " Finding…" : ""}
                   </p>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={locating}
-                  onClick={handleLocate}
-                >
-                  {locating ? (
-                    <Spinner />
-                  ) : (
-                    <LocateFixedIcon className="size-4" />
-                  )}
-                  Use my location
-                </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={geocoding || !canGeocode}
+                    onClick={handleGeocode}
+                  >
+                    {geocoding ? (
+                      <Spinner />
+                    ) : (
+                      <MapPinnedIcon className="size-4" />
+                    )}
+                    Fill from address
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={locating}
+                    onClick={handleLocate}
+                  >
+                    {locating ? (
+                      <Spinner />
+                    ) : (
+                      <LocateFixedIcon className="size-4" />
+                    )}
+                    Use my location
+                  </Button>
+                </div>
               </div>
             </div>
           </section>
@@ -672,7 +747,7 @@ export default function CheckoutPage() {
           </section>
         </form>
 
-        <aside className="lg:sticky lg:top-24 lg:self-start">
+        <aside className="lg:sticky lg:top-30 lg:self-start">
           <div className="rounded-2xl border bg-card p-5 shadow-xs sm:p-6">
             <div className="flex items-center justify-between gap-3">
               <h2 className="font-semibold text-lg">Order summary</h2>

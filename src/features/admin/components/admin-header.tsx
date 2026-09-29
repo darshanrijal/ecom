@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BellIcon, PackageSearchIcon, StoreIcon } from "lucide-react";
+import { BellIcon, StoreIcon } from "lucide-react";
 
 import {
   Breadcrumb,
@@ -13,7 +13,6 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/features/admin/components/theme-toggle";
@@ -60,14 +59,6 @@ export function AdminHeader() {
       </div>
 
       <div className="flex items-center gap-1 px-4">
-        <div className="relative hidden md:block">
-          <PackageSearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search…"
-            className="w-40 rounded-full pl-8 xl:w-56"
-            aria-label="Search"
-          />
-        </div>
         <Button
           variant="ghost"
           size="icon"

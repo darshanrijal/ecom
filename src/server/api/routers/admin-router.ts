@@ -29,6 +29,7 @@ import {
   enforceUniqueSlug,
   serializeDecimal,
 } from "./admin-helpers";
+import z from "zod";
 
 /**
  * Links a delivery man to an existing account by email. `excludeManId` keeps
@@ -296,68 +297,70 @@ export const adminRouter = router({
         };
       }),
 
-    detail: adminProcedure.input(byIdSchema).query(async ({ ctx, input }) => {
-      const user = await ctx.db.user.findUnique({
-        where: { id: input.id },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          image: true,
-          emailVerified: true,
-          createdAt: true,
-          addresses: {
-            orderBy: { province: "asc" },
-            select: {
-              id: true,
-              province: true,
-              city: true,
-              zone: true,
-              address: true,
+    detail: adminProcedure
+      .input(z.object({ id: z.string() }))
+      .query(async ({ ctx, input }) => {
+        const user = await ctx.db.user.findUnique({
+          where: { id: input.id },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true,
+            emailVerified: true,
+            createdAt: true,
+            addresses: {
+              orderBy: { province: "asc" },
+              select: {
+                id: true,
+                province: true,
+                city: true,
+                zone: true,
+                address: true,
+              },
+            },
+            orders: {
+              orderBy: { createdAt: "desc" },
+              select: {
+                id: true,
+                status: true,
+                totalAmount: true,
+                createdAt: true,
+                _count: { select: { items: true } },
+              },
             },
           },
-          orders: {
-            orderBy: { createdAt: "desc" },
-            select: {
-              id: true,
-              status: true,
-              totalAmount: true,
-              createdAt: true,
-              _count: { select: { items: true } },
-            },
-          },
-        },
-      });
+        });
 
-      if (!user) {
-        return null;
-      }
+        if (!user) {
+          return null;
+        }
 
-      const totalSpent = user.orders.reduce(
-        (sum, order) => sum + Number(order.totalAmount),
-        0
-      );
+        const totalSpent = user.orders.reduce(
+          (sum, order) => sum + Number(order.totalAmount),
+          0
+        );
 
-      return {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        image: user.image,
-        emailVerified: user.emailVerified,
-        createdAt: user.createdAt,
-        isAdmin: isAdminEmail(user.email),
-        totalSpent,
-        lastOrderAt: user.orders[0]?.createdAt ?? null,
-        addresses: user.addresses,
-        orders: user.orders.map((order) => ({
-          id: order.id,
-          status: order.status,
-          totalAmount: Number(order.totalAmount),
-          createdAt: order.createdAt,
-          itemCount: order._count.items,
-        })),
-      };
-    }),
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          image: user.image,
+          emailVerified: user.emailVerified,
+          createdAt: user.createdAt,
+          isAdmin: isAdminEmail(user.email),
+          totalSpent,
+          lastOrderAt: user.orders[0]?.createdAt ?? null,
+          addresses: user.addresses,
+          orders: user.orders.map((order) => ({
+            id: order.id,
+            status: order.status,
+            totalAmount: Number(order.totalAmount),
+            createdAt: order.createdAt,
+            itemCount: order._count.items,
+          })),
+        };
+      }),
   }),
 
   products: router({

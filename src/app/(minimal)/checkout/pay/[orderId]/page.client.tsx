@@ -3,6 +3,7 @@
 import { trpc } from "@/__rpc/client";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { ChangePaymentDialog } from "@/features/orders/components/order-actions";
 import {
   ArrowLeftIcon,
   CircleAlertIcon,
@@ -71,6 +72,7 @@ export function PayClient({ orderId }: { orderId: string }) {
   const [esewaRedirect, setEsewaRedirect] = useState<EsewaRedirect | null>(
     null
   );
+  const [showMethodPicker, setShowMethodPicker] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const lastVerifyAttempt = useRef(-1);
 
@@ -238,6 +240,14 @@ export function PayClient({ orderId }: { orderId: string }) {
                 <ShieldCheckIcon className="size-4" />
                 Pay Rs. {order.totalAmount.toLocaleString()}
               </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="mt-1 h-9 w-full text-muted-foreground"
+                onClick={() => setShowMethodPicker(true)}
+              >
+                Change payment method
+              </Button>
             </div>
           )}
 
@@ -306,6 +316,13 @@ export function PayClient({ orderId }: { orderId: string }) {
           ))}
         </form>
       )}
+
+      {showMethodPicker ? (
+        <ChangePaymentDialog
+          order={order}
+          onClose={() => setShowMethodPicker(false)}
+        />
+      ) : null}
     </div>
   );
 }

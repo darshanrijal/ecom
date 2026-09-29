@@ -100,6 +100,42 @@ export const orderByIdSchema = z.object({
   orderId: z.cuid2(),
 });
 
+export const changePaymentMethodSchema = z.object({
+  orderId: z.cuid2(),
+  paymentMethod: paymentMethodSchema,
+});
+
+/**
+ * Statuses a customer may cancel their own order from. Admins can cancel
+ * from anywhere the transition map allows; customers stop at PROCESSING —
+ * once the order is shipped or out for delivery the store has to decide.
+ */
+export const CUSTOMER_CANCELLABLE_STATUSES = [
+  "PENDING",
+  "PAID",
+  "PROCESSING",
+  "ASSIGNED",
+] as const;
+
+export function isCustomerCancellable(status: string): boolean {
+  return (CUSTOMER_CANCELLABLE_STATUSES as readonly string[]).includes(status);
+}
+
+/**
+ * The payment method can be switched while the order is still unpaid and
+ * hasn't entered fulfilment — the same PENDING/ASSIGNED window the payment
+ * routes accept, so a change never fights an in-progress charge.
+ */
+export function canChangePaymentMethod(order: {
+  status: string;
+  paidAt: Date | null;
+}): boolean {
+  return (
+    order.paidAt === null &&
+    (order.status === "PENDING" || order.status === "ASSIGNED")
+  );
+}
+
 export const listOrdersSchema = z.object({
   orderIds: z.array(z.cuid2()).max(50).default([]),
 });

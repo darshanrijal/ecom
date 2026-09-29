@@ -697,10 +697,20 @@ async function main() {
           `totalAmount came through as ${typeof wire.totalAmount}, want number`
         );
       }
-      const expected = Number(skuWithStock.price);
-      if (wire.totalAmount !== expected) {
+      const expectedSubtotal = Number(skuWithStock.price);
+      if (wire.subtotal !== expectedSubtotal) {
         throw new Error(
-          `totalAmount ${wire.totalAmount}, want ${expected} (1 x price)`
+          `subtotal ${wire.subtotal}, want ${expectedSubtotal} (1 x price)`
+        );
+      }
+      // The delivery charge depends on the store's configured settings, so
+      // assert the invariant instead: total = subtotal + delivery - discount,
+      // all as wire-safe numbers.
+      const recomputed =
+        wire.subtotal + wire.deliveryCharge - wire.discountAmount;
+      if (Math.abs(wire.totalAmount - recomputed) > 0.005) {
+        throw new Error(
+          `totalAmount ${wire.totalAmount}, want ~${recomputed} (subtotal + delivery - discount)`
         );
       }
       return wire;
@@ -1771,6 +1781,221 @@ async function main() {
       () =>
         admin.admin.updateOrderStatus({ orderId: createId(), status: "PAID" }),
       "[NOT_FOUND]"
+    );
+
+    // ---- refunds + customer cancellation -----------------------------------
+    await check("orders.getById (refund visible to the customer)", async () => {
+      // codOrderId ended REFUNDED above, which must carry a completed refund
+      const out = await authed.orders.getById({ orderId: codOrderId });
+      if (!out.refund) {
+        throw new Error("the REFUNDED order has no refund row");
+      }
+      if (out.refund.status !== "REFUNDED") {
+        throw new Error(`refund status ${out.refund.status}, want REFUNDED`);
+      }
+      if (out.refund.amount !== out.totalAmount) {
+        throw new Error(
+          `refund ${out.refund.amount} != paid ${out.totalAmount}`
+        );
+      }
+      return out.refund;
+    });
+
+    await check(
+      "admin.updateRefundStatus (PENDING -> PROCESSING -> REFUNDED)",
+      async () => {
+        // esewaOrderId was cancelled while paid, so it opened a pending refund
+        const processing = await admin.admin.updateRefundStatus({
+          orderId: esewaOrderId,
+          status: "PROCESSING",
+        });
+        if (processing.status !== "PROCESSING") {
+          throw new Error(`status ${processing.status}, want PROCESSING`);
+        }
+        const done = await admin.admin.updateRefundStatus({
+          orderId: esewaOrderId,
+          status: "REFUNDED",
+        });
+        if (done.status !== "REFUNDED") {
+          throw new Error(`status ${done.status}, want REFUNDED`);
+        }
+        if (typeof done.amount !== "number" || done.amount <= 0) {
+          throw new Error(`refund amount came back as ${done.amount}`);
+        }
+        return done;
+      }
+    );
+
+    await checkFails(
+      "admin.updateRefundStatus (REFUNDED -> PENDING rejected)",
+      () =>
+        admin.admin.updateRefundStatus({
+          orderId: esewaOrderId,
+          status: "PENDING",
+        }),
+      "cannot move from"
+    );
+
+    await checkFails(
+      "admin.updateRefundStatus (unknown order -> NOT_FOUND)",
+      () =>
+        admin.admin.updateRefundStatus({
+          orderId: createId(),
+          status: "PENDING",
+        }),
+      "[NOT_FOUND]"
+    );
+
+    let unpaidOrderId = "";
+    await check(
+      "orders.changePaymentMethod (unpaid order switches methods)",
+      async () => {
+        const order = await authed.orders.create({
+          items: [{ skuId: skuWithStock.id, quantity: 1 }],
+          shippingInfo,
+          paymentMethod: "ESEWA",
+        });
+        unpaidOrderId = order.id;
+        createdOrderIds.push(order.id);
+
+        const cod = await authed.orders.changePaymentMethod({
+          orderId: order.id,
+          paymentMethod: "COD",
+        });
+        const khalti = await authed.orders.changePaymentMethod({
+          orderId: order.id,
+          paymentMethod: "KHALTI",
+        });
+        if (cod.paymentMethod !== "COD") {
+          throw new Error(`method ${cod.paymentMethod}, want COD`);
+        }
+        if (khalti.paymentMethod !== "KHALTI") {
+          throw new Error(`method ${khalti.paymentMethod}, want KHALTI`);
+        }
+        if (khalti.paidAt !== null) {
+          throw new Error("switching methods must not mark an order paid");
+        }
+        return khalti;
+      }
+    );
+
+    await checkFails(
+      "orders.changePaymentMethod (paid order -> BAD_REQUEST)",
+      () =>
+        authed.orders.changePaymentMethod({
+          orderId: esewaOrderId,
+          paymentMethod: "COD",
+        }),
+      "[BAD_REQUEST]"
+    );
+
+    await checkFails(
+      "orders.changePaymentMethod (someone else's order -> FORBIDDEN)",
+      () =>
+        otherAuthed.orders.changePaymentMethod({
+          orderId: unpaidOrderId,
+          paymentMethod: "COD",
+        }),
+      "[FORBIDDEN]"
+    );
+
+    await check(
+      "orders.cancel (unpaid order -> CANCELLED, no refund)",
+      async () => {
+        const out = await authed.orders.cancel({ orderId: unpaidOrderId });
+        if (out.status !== "CANCELLED") {
+          throw new Error(`status ${out.status}, want CANCELLED`);
+        }
+        if (out.refund !== null) {
+          throw new Error("an unpaid order must not open a refund");
+        }
+        return out;
+      }
+    );
+
+    await checkFails(
+      "orders.cancel (already cancelled -> BAD_REQUEST)",
+      () => authed.orders.cancel({ orderId: unpaidOrderId }),
+      "[BAD_REQUEST]"
+    );
+
+    await checkFails(
+      "orders.cancel (someone else's order -> FORBIDDEN)",
+      () => otherAuthed.orders.cancel({ orderId: codOrderId }),
+      "[FORBIDDEN]"
+    );
+
+    await check(
+      "orders.cancel (guest order, cancelled by id possession)",
+      async () => {
+        const out = await anon.orders.cancel({ orderId: guestOrderId });
+        if (out.status !== "CANCELLED") {
+          throw new Error(`status ${out.status}, want CANCELLED`);
+        }
+        if (out.refund !== null) {
+          throw new Error("an unpaid guest order must not open a refund");
+        }
+        return out;
+      }
+    );
+
+    await check(
+      "orders.cancel (paid order -> CANCELLED + pending refund)",
+      async () => {
+        const order = await authed.orders.create({
+          items: [{ skuId: skuWithStock.id, quantity: 1 }],
+          shippingInfo,
+          paymentMethod: "ESEWA",
+        });
+        createdOrderIds.push(order.id);
+        await admin.admin.updateOrderStatus({
+          orderId: order.id,
+          status: "PAID",
+        });
+
+        const out = await authed.orders.cancel({ orderId: order.id });
+        if (out.status !== "CANCELLED") {
+          throw new Error(`status ${out.status}, want CANCELLED`);
+        }
+        if (!out.refund) {
+          throw new Error("cancelling a paid order must open a refund");
+        }
+        if (out.refund.status !== "PENDING") {
+          throw new Error(`refund ${out.refund.status}, want PENDING`);
+        }
+        if (out.refund.amount !== out.totalAmount) {
+          throw new Error(
+            `refund ${out.refund.amount} != paid ${out.totalAmount}`
+          );
+        }
+        return out;
+      }
+    );
+
+    await checkFails(
+      "orders.cancel (shipped order -> BAD_REQUEST)",
+      async () => {
+        const order = await authed.orders.create({
+          items: [{ skuId: skuWithStock.id, quantity: 1 }],
+          shippingInfo,
+          paymentMethod: "COD",
+        });
+        createdOrderIds.push(order.id);
+        await admin.admin.updateOrderStatus({
+          orderId: order.id,
+          status: "PAID",
+        });
+        await admin.admin.updateOrderStatus({
+          orderId: order.id,
+          status: "PROCESSING",
+        });
+        await admin.admin.updateOrderStatus({
+          orderId: order.id,
+          status: "SHIPPED",
+        });
+        return authed.orders.cancel({ orderId: order.id });
+      },
+      "[BAD_REQUEST]"
     );
 
     await check("admin.sweepImages (unreferenced uploads)", async () => {

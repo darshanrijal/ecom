@@ -4,8 +4,11 @@ import { isAdminEmail } from "@/lib/admin";
 import {
   type AdminOrderStatus,
   type AdminPaymentMethod,
+  type AdminRefundStatus,
   ORDER_STATUSES,
   ORDER_TRANSITIONS,
+  REFUND_STATUSES,
+  REFUND_TRANSITIONS,
 } from "@/lib/admin-schema";
 import { slugify } from "@/lib/catalog";
 import {
@@ -22,8 +25,8 @@ import {
   enforceUniqueField,
   enforceUniqueSlug,
   serializeDecimal,
-  type Tx,
 } from "./admin-helpers";
+import { ensureRefund, restockItems } from "./order-helpers";
 
 // ---------------------------------------------------------------------------
 // Input schemas
@@ -112,6 +115,11 @@ const listOrdersInput = z.object({
 const orderStatusUpdateInput = z.object({
   orderId: z.string().cuid2(),
   status: z.enum(ORDER_STATUSES),
+});
+
+const refundStatusUpdateInput = z.object({
+  orderId: z.string().cuid2(),
+  status: z.enum(REFUND_STATUSES),
 });
 
 const categoryCreateInput = z.object({
@@ -332,6 +340,7 @@ interface AdminOrderRow {
   status: AdminOrderStatus;
   paymentMethod: AdminPaymentMethod;
   paidAt: Date | null;
+  paymentRef: string | null;
   createdAt: Date;
   totalAmount: unknown;
   subtotal: unknown;
@@ -344,6 +353,13 @@ interface AdminOrderRow {
   shippingInfo: unknown;
   user: { email: string } | null;
   deliveryMan: { id: string; name: string; phone: string } | null;
+  refund: {
+    status: AdminRefundStatus;
+    amount: { toNumber: () => number };
+    reason: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  } | null;
   items: Array<{
     id: string;
     productName: string;
@@ -359,6 +375,7 @@ function serializeAdminOrder(order: AdminOrderRow) {
     status: order.status,
     paymentMethod: order.paymentMethod,
     paidAt: order.paidAt,
+    paymentRef: order.paymentRef,
     createdAt: order.createdAt,
     totalAmount: Number(order.totalAmount),
     subtotal: Number(order.subtotal),
@@ -371,6 +388,7 @@ function serializeAdminOrder(order: AdminOrderRow) {
     user: order.user ? { email: order.user.email } : null,
     deliveryMan: order.deliveryMan,
     shippingInfo: parseShippingInfo(order.shippingInfo),
+    refund: order.refund ? serializeRefund(order.refund) : null,
     items: order.items.map((item) => ({
       id: item.id,
       productName: item.productName,
@@ -381,20 +399,22 @@ function serializeAdminOrder(order: AdminOrderRow) {
   };
 }
 
-async function restockItems(
-  tx: Tx,
-  items: Array<{ skuId: string | null; quantity: number }>
-) {
-  for (const item of items) {
-    if (!item.skuId) {
-      continue;
-    }
-    // biome-ignore lint/performance/noAwaitInLoops: a transaction client must run queries sequentially
-    await tx.productSKU.update({
-      where: { id: item.skuId },
-      data: { stock: { increment: item.quantity } },
-    });
-  }
+interface RefundRow {
+  amount: { toNumber: () => number };
+  status: AdminRefundStatus;
+  reason: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+function serializeRefund(refund: RefundRow) {
+  return {
+    amount: refund.amount.toNumber(),
+    status: refund.status,
+    reason: refund.reason,
+    createdAt: refund.createdAt,
+    updatedAt: refund.updatedAt,
+  };
 }
 
 // Orders count toward revenue once payment has been received, regardless of
@@ -541,6 +561,7 @@ const orderInclude = {
   user: { select: { email: true } },
   deliveryMan: { select: { id: true, name: true, phone: true } },
   items: true,
+  refund: true,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -718,6 +739,18 @@ export const flatAdminProcedures = {
         if (input.status === "CANCELLED" || input.status === "REFUNDED") {
           await restockItems(tx, order.items);
         }
+        // A reversal of a paid order must carry a refund for the full amount:
+        // CANCELLED opens one as pending, REFUNDED asserts it is complete.
+        // Created before the update so this mutation's response includes it —
+        // neither status changes paidAt, so the pre-update value is the
+        // authoritative "was this paid" signal.
+        if (order.paidAt && input.status === "CANCELLED") {
+          await ensureRefund(tx, order, "PENDING", "Cancelled by the store");
+        }
+        if (order.paidAt && input.status === "REFUNDED") {
+          await ensureRefund(tx, order, "REFUNDED", "Order marked refunded");
+        }
+
         return tx.order.update({
           where: { id: order.id },
           data: {
@@ -734,6 +767,52 @@ export const flatAdminProcedures = {
       });
 
       return serializeAdminOrder(updated);
+    }),
+
+  updateRefundStatus: adminProcedure
+    .input(refundStatusUpdateInput)
+    .mutation(async ({ ctx, input }) => {
+      const order = await ctx.db.order.findUnique({
+        where: { id: input.orderId },
+        include: { refund: true },
+      });
+      if (!order) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Order not found." });
+      }
+
+      if (order.refund) {
+        if (order.refund.status === input.status) {
+          return serializeRefund(order.refund);
+        }
+        if (!REFUND_TRANSITIONS[order.refund.status].includes(input.status)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Refunds cannot move from ${order.refund.status} to ${input.status}.`,
+          });
+        }
+        const updated = await ctx.db.refund.update({
+          where: { orderId: order.id },
+          data: { status: input.status },
+        });
+        return serializeRefund(updated);
+      }
+
+      // legacy/paid orders without a refund row yet — recording one here
+      if (!order.paidAt) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This order has no payment to refund.",
+        });
+      }
+      const created = await ctx.db.refund.create({
+        data: {
+          orderId: order.id,
+          amount: order.totalAmount.toNumber(),
+          status: input.status,
+          reason: "Recorded by the store",
+        },
+      });
+      return serializeRefund(created);
     }),
 
   listProducts: adminProcedure

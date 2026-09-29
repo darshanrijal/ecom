@@ -1,12 +1,17 @@
 import { TRPCError } from "@trpc/server";
 import {
+  canChangePaymentMethod,
+  changePaymentMethodSchema,
   createOrderSchema,
+  isCustomerCancellable,
   listOrdersSchema,
   orderByIdSchema,
+  type PaymentMethod,
   type ShippingInfo,
 } from "@/lib/order-schema";
 import { quoteDelivery } from "@/lib/delivery";
 import { protectedProcedure, publicProcedure, router } from "../trpc";
+import { ensureRefund, restockItems } from "./order-helpers";
 
 const orderInclude = {
   items: {
@@ -19,13 +24,14 @@ const orderInclude = {
       },
     },
   },
+  refund: true,
 };
 
 interface OrderRecord {
   id: string;
   userId: string | null;
   status: string;
-  paymentMethod: string;
+  paymentMethod: PaymentMethod;
   paidAt: Date | null;
   paymentRef: string | null;
   totalAmount: { toNumber: () => number };
@@ -49,6 +55,13 @@ interface OrderRecord {
       product: { slug: string };
     } | null;
   }>;
+  refund: {
+    status: string;
+    amount: { toNumber: () => number };
+    reason: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  } | null;
 }
 
 function serializeOrder(order: OrderRecord) {
@@ -82,7 +95,30 @@ function serializeOrder(order: OrderRecord) {
       imageUrl: item.sku?.imageUrl ?? null,
       slug: item.sku?.product.slug ?? null,
     })),
+    refund: order.refund
+      ? {
+          status: order.refund.status,
+          amount: order.refund.amount.toNumber(),
+          reason: order.refund.reason,
+          createdAt: order.refund.createdAt,
+          updatedAt: order.refund.updatedAt,
+        }
+      : null,
   };
+}
+
+// Guest orders (userId null) are guarded by possession of their id — the
+// same model getById, orders.list and the payment routes already use.
+function assertOrderOwnership(
+  order: { userId: string | null },
+  sessionUserId: string | undefined
+) {
+  if (order.userId && order.userId !== sessionUserId) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "This order belongs to another account",
+    });
+  }
 }
 
 export const orderRouter = router({
@@ -221,12 +257,7 @@ export const orderRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Order not found" });
       }
 
-      if (order.userId && order.userId !== ctx.session?.user?.id) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "This order belongs to another account",
-        });
-      }
+      assertOrderOwnership(order, ctx.session?.user?.id);
 
       return serializeOrder(order);
     }),
@@ -263,6 +294,87 @@ export const orderRouter = router({
 
       return orders.map((order) => serializeOrder(order));
     }),
+  cancel: publicProcedure
+    .input(orderByIdSchema)
+    .mutation(async ({ ctx, input }) => {
+      const order = await ctx.db.order.findUnique({
+        where: { id: input.orderId },
+        include: orderInclude,
+      });
+
+      if (!order) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Order not found" });
+      }
+      assertOrderOwnership(order, ctx.session?.user?.id);
+
+      if (!isCustomerCancellable(order.status)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "This order can no longer be cancelled online. Contact support for help.",
+        });
+      }
+
+      const cancelled = await ctx.db.$transaction(async (tx) => {
+        await restockItems(tx, order.items);
+        // Money was already collected (wallet payment) — open a refund for the
+        // full amount; unpaid orders simply stop here. Runs before the update
+        // so the row returned by this mutation carries the new refund.
+        if (order.paidAt) {
+          await ensureRefund(tx, order, "PENDING", "Cancelled by the customer");
+        }
+        return tx.order.update({
+          where: { id: order.id },
+          data: { status: "CANCELLED" },
+          include: orderInclude,
+        });
+      });
+
+      return serializeOrder(cancelled);
+    }),
+
+  changePaymentMethod: publicProcedure
+    .input(changePaymentMethodSchema)
+    .mutation(async ({ ctx, input }) => {
+      const order = await ctx.db.order.findUnique({
+        where: { id: input.orderId },
+        include: orderInclude,
+      });
+
+      if (!order) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Order not found" });
+      }
+      assertOrderOwnership(order, ctx.session?.user?.id);
+
+      if (!canChangePaymentMethod(order)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: order.paidAt
+            ? "This order has already been paid."
+            : "The payment method can only be changed before the order is processed.",
+        });
+      }
+
+      if (order.paymentMethod === input.paymentMethod) {
+        return serializeOrder(order);
+      }
+
+      // clear the previous gateway session so an abandoned initiation can
+      // never be verified against the new method
+      const updated = await ctx.db.order.update({
+        where: { id: order.id },
+        data: {
+          paymentMethod: input.paymentMethod,
+          paymentRef: null,
+          esewaTransactionUuid: null,
+          khaltiPidx: null,
+        },
+        include: orderInclude,
+      });
+
+      return serializeOrder(updated);
+    }),
+
   getAllOrderIds: protectedProcedure.query(async ({ ctx }) => {
     const data = await ctx.db.order.findMany({
       where: { userId: ctx.user.id },
