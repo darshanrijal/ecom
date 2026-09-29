@@ -81,8 +81,8 @@ export default async function AdminDashboardPage() {
   return (
     <>
       <PageHeader
-        title="Dashboard of Admin"
-        description="Welcome back to the panel — here's what's happening across your store today."
+        title="Dashboard"
+        description="Welcome back — here's what's happening across your store today."
       >
         <Button
           variant="outline"
