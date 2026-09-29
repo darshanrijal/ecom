@@ -38,6 +38,11 @@ import { useOrderStore } from "@/stores/order-store";
 import { ProductImage } from "@/features/products/components/product-image";
 import { useCartSkus } from "@/hooks/use-cart-skus";
 import { useAddressGeocode } from "@/hooks/use-address-geocode";
+import {
+  SaveAddressRow,
+  SavedAddressPicker,
+  type SavedAddress,
+} from "@/features/checkout/components/saved-addresses";
 
 type ShippingFormInput = z.input<typeof shippingInfoFormSchema>;
 type ShippingFormValues = z.output<typeof shippingInfoFormSchema>;
@@ -158,6 +163,7 @@ export default function CheckoutPage() {
   const utils = trpc.useUtils();
   const addGuestOrder = useOrderStore((state) => state.addOrder);
   const createOrder = trpc.orders.create.useMutation();
+  const saveAddress = trpc.address.create.useMutation();
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("COD");
   const [locating, setLocating] = useState(false);
   const [coordsManual, setCoordsManual] = useState(false);
@@ -262,6 +268,111 @@ export default function CheckoutPage() {
       description:
         "Couldn't match that address. Adjust it, or enter the coordinates manually.",
     });
+  }
+
+  function applySavedAddress(saved: SavedAddress) {
+    form.setValue("province", saved.province, {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+    form.setValue("city", saved.city, {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+    form.setValue("address", saved.address, {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+    if (saved.fullName) {
+      form.setValue("fullName", saved.fullName, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+    }
+    if (saved.phone) {
+      form.setValue("phone", saved.phone, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+    }
+
+    if (saved.lat !== null && saved.lng !== null) {
+      // exact stored coordinates win — mark them manual so the address
+      // watcher doesn't re-geocode and shift the drop-off point
+      fillCoords(saved.lat, saved.lng);
+      toast.add({
+        type: "success",
+        title: "Address filled in",
+        description: "Your saved location and coordinates are applied.",
+      });
+      return;
+    }
+
+    // no stored coordinates: clear stale ones and let the address watcher
+    // geocode the freshly picked address automatically
+    setCoordsManual(false);
+    form.setValue("deliveryLat", "");
+    form.setValue("deliveryLng", "");
+    toast.add({
+      type: "success",
+      title: "Address filled in",
+      description: "Finding the coordinates for this address…",
+    });
+  }
+
+  async function handleSaveAddress() {
+    const values = form.getValues();
+    const fields: Array<
+      "province" | "city" | "address" | "fullName" | "phone"
+    > = ["province", "city", "address"];
+    if (values.fullName.trim()) {
+      fields.push("fullName");
+    }
+    if (values.phone.trim()) {
+      fields.push("phone");
+    }
+
+    const valid = await form.trigger(fields);
+    if (!valid) {
+      toast.add({
+        type: "error",
+        title: "Check the highlighted fields",
+        description: "Fix the address details, then save it again.",
+      });
+      return;
+    }
+
+    const lat = parseCoord(values.deliveryLat, -90, 90);
+    const lng = parseCoord(values.deliveryLng, -180, 180);
+    const coords = lat !== null && lng !== null ? { lat, lng } : {};
+
+    saveAddress.mutate(
+      {
+        fullName: values.fullName.trim() || undefined,
+        phone: values.phone.trim() || undefined,
+        province: values.province,
+        city: values.city,
+        address: values.address,
+        ...coords,
+      },
+      {
+        onSuccess: () => {
+          utils.address.list.invalidate();
+          toast.add({
+            type: "success",
+            title: "Address saved",
+            description: "Click it next time to fill this form.",
+          });
+        },
+        onError: (error) => {
+          toast.add({
+            type: "error",
+            title: "Couldn't save the address",
+            description: error.message,
+          });
+        },
+      }
+    );
   }
 
   const prefilled = useRef(false);
@@ -400,6 +511,8 @@ export default function CheckoutPage() {
             </div>
 
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <SavedAddressPicker onPick={applySavedAddress} />
+
               <Controller
                 control={form.control}
                 name="fullName"
@@ -648,6 +761,13 @@ export default function CheckoutPage() {
                   </Button>
                 </div>
               </div>
+
+              {isLoggedIn && (
+                <SaveAddressRow
+                  onSave={handleSaveAddress}
+                  saving={saveAddress.isPending}
+                />
+              )}
             </div>
           </section>
 

@@ -623,6 +623,142 @@ async function main() {
     });
 
     // ---- orders: checkout lifecycle ---------------------------------------
+    // ---- saved addresses (address router) -----------------------------------
+    await checkFails(
+      "address.list (anonymous -> UNAUTHORIZED)",
+      () => anon.address.list(),
+      "[UNAUTHORIZED]"
+    );
+    await checkFails(
+      "address.create (anonymous -> UNAUTHORIZED)",
+      () =>
+        anon.address.create({
+          province: "Bagmati",
+          city: "Kathmandu",
+          address: "Anonymous attempt Ward 5",
+        }),
+      "[UNAUTHORIZED]"
+    );
+
+    let savedAddressId = "";
+    await check("address.create (stores a saved address)", async () => {
+      const out = await authed.address.create({
+        fullName: "API Check",
+        phone: "9800000000",
+        province: "Bagmati",
+        city: "Kathmandu",
+        address: "Verification Tole 12, Baneshwor",
+        lat: 27.7172,
+        lng: 85.324,
+      });
+      savedAddressId = out.id;
+      if (out.lat !== 27.7172 || out.lng !== 85.324) {
+        throw new Error(`coords ${out.lat},${out.lng}, want 27.7172,85.324`);
+      }
+      return out;
+    });
+
+    await check(
+      "address.list (returns the caller's saved addresses)",
+      async () => {
+        const out = await authed.address.list();
+        if (!out.some((address) => address.id === savedAddressId)) {
+          throw new Error("saved address missing from the list");
+        }
+        return out;
+      }
+    );
+
+    await checkFails(
+      "address.create (invalid province -> BAD_REQUEST)",
+      () =>
+        authed.address.create({
+          province: "Nowhere",
+          city: "Kathmandu",
+          address: "Bad province Ward 5",
+        }),
+      "[BAD_REQUEST]"
+    );
+
+    await check(
+      "address.create (refreshes a duplicate location instead of stacking)",
+      async () => {
+        const out = await authed.address.create({
+          fullName: "API Check Renamed",
+          province: "Bagmati",
+          city: "Kathmandu",
+          address: "Verification Tole 12, Baneshwor",
+        });
+        if (out.id !== savedAddressId) {
+          throw new Error(
+            `created ${out.id}, want to refresh ${savedAddressId}`
+          );
+        }
+        if (out.fullName !== "API Check Renamed") {
+          throw new Error(`fullName ${out.fullName}, want the update applied`);
+        }
+        return out;
+      }
+    );
+
+    await check("address.create (caps saved addresses at 20)", async () => {
+      let attempts = 0;
+      while (attempts < 30) {
+        try {
+          await authed.address.create({
+            province: "Bagmati",
+            city: "Kathmandu",
+            address: `Bulk saved address ${attempts} Ward 5`,
+          });
+        } catch (error) {
+          const capped =
+            error instanceof Error &&
+            (error as { code?: unknown }).code === "PRECONDITION_FAILED";
+          if (!capped) {
+            throw error;
+          }
+          break;
+        }
+        attempts++;
+      }
+      const saved = await db.address.count({ where: { userId } });
+      if (saved !== 20) {
+        throw new Error(`saved ${saved} addresses, want the cap at 20`);
+      }
+      return saved;
+    });
+
+    await check("address.remove (deletes the caller's address)", async () => {
+      const out = await authed.address.remove({ id: savedAddressId });
+      if (out.id !== savedAddressId) {
+        throw new Error(`removed ${out.id}, want ${savedAddressId}`);
+      }
+      const after = await authed.address.list();
+      if (after.some((address) => address.id === savedAddressId)) {
+        throw new Error("address still present after removal");
+      }
+      return out;
+    });
+
+    await checkFails(
+      "address.remove (unknown address -> NOT_FOUND)",
+      () => authed.address.remove({ id: createId() }),
+      "[NOT_FOUND]"
+    );
+
+    await checkFails(
+      "address.remove (someone else's address -> FORBIDDEN)",
+      async () => {
+        const theirs = await otherAuthed.address.create({
+          province: "Bagmati",
+          city: "Kathmandu",
+          address: "Other account address Ward 3",
+        });
+        return authed.address.remove({ id: theirs.id });
+      },
+      "[FORBIDDEN]"
+    );
+
     const shippingInfo = {
       fullName: "API Check",
       phone: "9800000000",

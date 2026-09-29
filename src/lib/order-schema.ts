@@ -100,6 +100,37 @@ export const orderByIdSchema = z.object({
   orderId: z.cuid2(),
 });
 
+/**
+ * Saving an address from checkout — same core rules as shippingInfoSchema so
+ * anything that validates there can be saved; recipient/coords are optional
+ * (a saved location is still useful on its own and can be re-geocoded later).
+ */
+export const addressCreateSchema = z.object({
+  fullName: z.string().trim().max(80, "Name is too long").optional(),
+  phone: z
+    .string()
+    .trim()
+    .optional()
+    .refine(
+      (value) =>
+        value === undefined ||
+        value === "" ||
+        (PHONE_PATTERN.test(value) &&
+          value.replace(NON_DIGITS, "").length >= 7),
+      "Enter a valid phone number (e.g. 98XXXXXXXX)"
+    ),
+  province: z
+    .string()
+    .min(1, "Select a province")
+    .refine((v) => z.enum(NEPAL_PROVINCES).safeParse(v).success, {
+      error: "Invalid province selected",
+    }),
+  city: z.string().trim().min(2, "Enter your city or district").max(100),
+  address: z.string().trim().min(5, "Enter your street address").max(300),
+  lat: z.number().min(-90).max(90).nullable().optional(),
+  lng: z.number().min(-180).max(180).nullable().optional(),
+});
+
 export const changePaymentMethodSchema = z.object({
   orderId: z.cuid2(),
   paymentMethod: paymentMethodSchema,

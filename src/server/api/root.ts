@@ -13,6 +13,7 @@ import { reviewRouter } from "./routers/review-router";
 import { adminRouter } from "./routers/admin-router";
 import { favoriteRouter } from "./routers/favorite-router";
 import { deliveryRouter } from "./routers/delivery-router";
+import { addressRouter } from "./routers/address-router";
 
 export const appRouter = router({
   health: publicProcedure.query(() => ({
@@ -57,6 +58,7 @@ export const appRouter = router({
   admin: adminRouter,
   favorite: favoriteRouter,
   delivery: deliveryRouter,
+  address: addressRouter,
 });
 
 export type AppRouter = typeof appRouter;

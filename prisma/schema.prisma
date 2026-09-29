@@ -77,13 +77,26 @@ model Verification {
 }
 
 model Address {
-  id       String @id @default(cuid(2))
+  id       String  @id @default(cuid(2))
+  fullName String?
+  phone    String?
   province String
   city     String
-  zone     String
+  zone     String?
   address  String
-  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId   String
+  // exact drop-off point captured with the address, so picking it restores
+  // coordinates instantly; null means "geocode it when picked"
+  lat      Float?
+  lng      Float?
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("addresses")
 }
 
 model Category {
