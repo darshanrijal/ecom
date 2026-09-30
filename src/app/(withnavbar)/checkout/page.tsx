@@ -15,10 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeftIcon,
   BanknoteIcon,
-  LocateFixedIcon,
   LockIcon,
-  MapPinIcon,
-  MapPinnedIcon,
   ShieldCheckIcon,
   TruckIcon,
   PackageXIcon,
@@ -26,7 +23,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, type SubmitErrorHandler, useForm } from "react-hook-form";
 import type z from "zod";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -38,6 +35,7 @@ import { useOrderStore } from "@/stores/order-store";
 import { ProductImage } from "@/features/products/components/product-image";
 import { useCartSkus } from "@/hooks/use-cart-skus";
 import { useAddressGeocode } from "@/hooks/use-address-geocode";
+import { LocationBox } from "@/features/checkout/components/location-box";
 import {
   SaveAddressRow,
   SavedAddressPicker,
@@ -95,7 +93,7 @@ function geolocationErrorMessage(error: GeolocationPositionError) {
   if (error.code === 3) {
     return "Finding your location timed out. Try again, or use your address instead.";
   }
-  return "Your location couldn't be determined right now. Use your address instead, or enter the coordinates manually.";
+  return "Your location couldn't be determined right now. Use your address instead, or try again.";
 }
 
 function describeDelivery(
@@ -167,6 +165,7 @@ export default function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("COD");
   const [locating, setLocating] = useState(false);
   const [coordsManual, setCoordsManual] = useState(false);
+  const [coordsError, setCoordsError] = useState(false);
 
   const { data: deliverySettings } = trpc.delivery.getSettings.useQuery();
 
@@ -200,6 +199,19 @@ export default function CheckoutPage() {
   const watchAddress = form.watch("address");
   const watchCity = form.watch("city");
   const watchProvince = form.watch("province");
+  const watchLat = form.watch("deliveryLat");
+  const watchLng = form.watch("deliveryLng");
+
+  // The coordinate inputs are hidden — clear the "couldn't find this address"
+  // banner the moment a valid point exists again (geocode, GPS, saved address).
+  useEffect(() => {
+    if (
+      parseCoord(watchLat, -90, 90) !== null &&
+      parseCoord(watchLng, -180, 180) !== null
+    ) {
+      setCoordsError(false);
+    }
+  }, [watchLat, watchLng]);
   const { geocoding, geocodeNow, canGeocode } = useAddressGeocode({
     address: watchAddress,
     city: watchCity,
@@ -266,7 +278,7 @@ export default function CheckoutPage() {
       type: "error",
       title: "No location found",
       description:
-        "Couldn't match that address. Adjust it, or enter the coordinates manually.",
+        "We couldn't find that address. Check the street address, city and province, then try again.",
     });
   }
 
@@ -390,6 +402,25 @@ export default function CheckoutPage() {
     });
   }, [session.data, form]);
 
+  // The lat/lng inputs are hidden, so their schema errors have no visible
+  // field — surface them as a toast plus the banner in the location box.
+  const handleInvalid: SubmitErrorHandler<ShippingFormInput> = () => {
+    const values = form.getValues();
+    const missingCoords =
+      parseCoord(values.deliveryLat, -90, 90) === null ||
+      parseCoord(values.deliveryLng, -180, 180) === null;
+    if (!missingCoords) {
+      return;
+    }
+    setCoordsError(true);
+    toast.add({
+      type: "error",
+      title: "We couldn't find your address",
+      description:
+        "Check the street address, city and province are correct — or use your location — then place the order again.",
+    });
+  };
+
   async function handleCreateOrder(values: ShippingFormValues) {
     const items = lines.flatMap((line) =>
       line.sku ? [{ skuId: line.sku.id, quantity: line.item.quantity }] : []
@@ -499,7 +530,7 @@ export default function CheckoutPage() {
       <div className="mt-6 grid gap-8 lg:grid-cols-[minmax(0,1fr)_380px]">
         <form
           id="checkout-form"
-          onSubmit={form.handleSubmit(handleCreateOrder)}
+          onSubmit={form.handleSubmit(handleCreateOrder, handleInvalid)}
           className="flex flex-col gap-6"
         >
           <section className="rounded-2xl border bg-card p-5 shadow-xs sm:p-6">
@@ -671,96 +702,15 @@ export default function CheckoutPage() {
                 )}
               />
 
-              <Controller
-                control={form.control}
-                name="deliveryLat"
-                render={({ field, fieldState }) => (
-                  <Field data-invalid={fieldState.invalid}>
-                    <FieldLabel htmlFor="deliveryLat">Latitude</FieldLabel>
-                    <Input
-                      {...field}
-                      id="deliveryLat"
-                      inputMode="decimal"
-                      autoComplete="off"
-                      placeholder="27.7172"
-                      aria-invalid={fieldState.invalid}
-                      onChange={(event) => {
-                        setCoordsManual(true);
-                        field.onChange(event);
-                      }}
-                    />
-                    {!!fieldState.invalid && (
-                      <FieldError errors={[fieldState.error]} />
-                    )}
-                  </Field>
-                )}
+              <LocationBox
+                geocoding={geocoding}
+                coordsManual={coordsManual}
+                coordsError={coordsError}
+                canGeocode={canGeocode}
+                locating={locating}
+                onGeocode={handleGeocode}
+                onLocate={handleLocate}
               />
-
-              <Controller
-                control={form.control}
-                name="deliveryLng"
-                render={({ field, fieldState }) => (
-                  <Field data-invalid={fieldState.invalid}>
-                    <FieldLabel htmlFor="deliveryLng">Longitude</FieldLabel>
-                    <Input
-                      {...field}
-                      id="deliveryLng"
-                      inputMode="decimal"
-                      autoComplete="off"
-                      placeholder="85.3240"
-                      aria-invalid={fieldState.invalid}
-                      onChange={(event) => {
-                        setCoordsManual(true);
-                        field.onChange(event);
-                      }}
-                    />
-                    {!!fieldState.invalid && (
-                      <FieldError errors={[fieldState.error]} />
-                    )}
-                  </Field>
-                )}
-              />
-
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-muted/40 px-4 py-3 sm:col-span-2">
-                <div className="flex items-start gap-2 text-muted-foreground text-sm">
-                  <MapPinIcon className="mt-0.5 size-4 shrink-0" />
-                  <p>
-                    We fill the coordinates from your address automatically — or
-                    use a button to set them yourself.
-                    {geocoding ? " Finding…" : ""}
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={geocoding || !canGeocode}
-                    onClick={handleGeocode}
-                  >
-                    {geocoding ? (
-                      <Spinner />
-                    ) : (
-                      <MapPinnedIcon className="size-4" />
-                    )}
-                    Fill from address
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={locating}
-                    onClick={handleLocate}
-                  >
-                    {locating ? (
-                      <Spinner />
-                    ) : (
-                      <LocateFixedIcon className="size-4" />
-                    )}
-                    Use my location
-                  </Button>
-                </div>
-              </div>
 
               {isLoggedIn && (
                 <SaveAddressRow
@@ -963,7 +913,7 @@ export default function CheckoutPage() {
             <Button
               type="submit"
               form="checkout-form"
-              disabled={createOrder.isPending || sessionPending}
+              disabled={createOrder.isPending || sessionPending || geocoding}
               className="mt-5 h-12 w-full"
             >
               {createOrder.isPending ? (

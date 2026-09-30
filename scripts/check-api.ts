@@ -701,7 +701,7 @@ async function main() {
       }
     );
 
-    await check("address.create (caps saved addresses at 20)", async () => {
+    await check("address.create (caps saved addresses at 5)", async () => {
       let attempts = 0;
       while (attempts < 30) {
         try {
@@ -722,8 +722,8 @@ async function main() {
         attempts++;
       }
       const saved = await db.address.count({ where: { userId } });
-      if (saved !== 20) {
-        throw new Error(`saved ${saved} addresses, want the cap at 20`);
+      if (saved !== 5) {
+        throw new Error(`saved ${saved} addresses, want the cap at 5`);
       }
       return saved;
     });

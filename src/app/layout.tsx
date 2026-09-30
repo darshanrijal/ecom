@@ -51,7 +51,7 @@ export default function RootLayout({
         {/* <NextSSRPlugin routerConfig={extractRouterConfig(appFileRouter)} /> */}
         <TopLoader
           color="oklch(75% 0.183 55.934)"
-          height={2.4}
+          height={3}
           showSpinner={false}
         />
         <Providers>
