@@ -5,7 +5,7 @@ import Link from "next/link";
 
 export function PromoBanners() {
   return (
-    <section className="mx-auto grid w-full max-w-7xl gap-4 px-4 sm:px-6 md:grid-cols-2 lg:px-8">
+    <section className="mx-auto grid w-full max-w-7xl gap-4 px-4 sm:px-6 md:grid-cols-2 lg:px-8 mt-12">
       {/* EMI */}
       <div className="relative overflow-hidden rounded-3xl bg-primary p-6 text-primary-foreground sm:p-8">
         <div className="relative z-10 flex h-full flex-col items-start gap-4">

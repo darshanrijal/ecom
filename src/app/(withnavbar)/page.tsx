@@ -8,6 +8,7 @@ import { Hero } from "@/features/homepage/components/hero";
 import { ProductShelf } from "@/features/homepage/components/product-shelf";
 import { TrustBand } from "@/features/homepage/components/trust-band";
 import { UspStrip } from "@/features/homepage/components/usp-strip";
+import { PromoBanners } from "../../features/homepage/components/promo-banners";
 
 export default async function Home() {
   const { categories, deals, popular, stats } =
@@ -58,6 +59,8 @@ export default async function Home() {
           products={moreDeals}
         />
       ) : null}
+
+			<PromoBanners />
 
       <CategorySpotlight categories={spotlightCategories} />
 
