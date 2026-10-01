@@ -1,33 +1,29 @@
 "use client";
 
-import { LocateFixedIcon, MapPinIcon, MapPinnedIcon } from "lucide-react";
+import { LocateFixedIcon, MapPinIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 /**
- * The delivery-location box under the address fields: explains how the
- * drop-off point is found and offers the two ways to set it (geocode the
- * written address, or use the device GPS). The coordinate inputs themselves
- * are hidden — this box is their only visible surface, and it doubles as the
+ * The delivery-location box under the address fields. The coordinate inputs
+ * are hidden and the address itself is geocoded automatically, so this box
+ * only carries: an explanation of how the delivery point is found, the manual
+ * "use my location" escape hatch (which also fills in the address), and the
  * error banner when an address can't be placed on the map.
  */
 export function LocationBox({
   geocoding,
   coordsManual,
   coordsError,
-  canGeocode,
   locating,
-  onGeocode,
   onLocate,
 }: {
   geocoding: boolean;
   coordsManual: boolean;
   coordsError: boolean;
-  canGeocode: boolean;
   locating: boolean;
-  onGeocode: () => void;
   onLocate: () => void;
 }) {
   return (
@@ -53,34 +49,23 @@ export function LocationBox({
         ) : (
           <p className="text-muted-foreground">
             {coordsManual
-              ? "Using the point you selected — “Fill from address” re-finds it from the written address."
-              : "We find the delivery point from your address automatically — or use a button to set it yourself."}
+              ? "Using your current location as the delivery point — check the address details above and correct anything that's off."
+              : "We find the delivery point from your address automatically — or use your location instead."}
             {geocoding ? " Finding…" : ""}
+            {locating ? " Locating you…" : ""}
           </p>
         )}
       </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={geocoding || !canGeocode}
-          onClick={onGeocode}
-        >
-          {geocoding ? <Spinner /> : <MapPinnedIcon className="size-4" />}
-          Fill from address
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={locating}
-          onClick={onLocate}
-        >
-          {locating ? <Spinner /> : <LocateFixedIcon className="size-4" />}
-          Use my location
-        </Button>
-      </div>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={locating}
+        onClick={onLocate}
+      >
+        {locating ? <Spinner /> : <LocateFixedIcon className="size-4" />}
+        Use my location
+      </Button>
     </div>
   );
 }

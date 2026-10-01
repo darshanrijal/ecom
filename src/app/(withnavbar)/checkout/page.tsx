@@ -21,12 +21,14 @@ import {
   PackageXIcon,
 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Controller, type SubmitErrorHandler, useForm } from "react-hook-form";
 import type z from "zod";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { reverseGeocode } from "@/lib/geocode";
 import { authClient } from "@/lib/auth-client";
 import { quoteDelivery, type DeliveryQuote } from "@/lib/delivery";
 import { NEPAL_PROVINCES, shippingInfoFormSchema } from "@/lib/order-schema";
@@ -86,14 +88,32 @@ function previewQuote(
   });
 }
 
-function geolocationErrorMessage(error: GeolocationPositionError) {
-  if (error.code === 1) {
-    return "Location access was blocked. Allow it for this site in your browser settings — or use your address instead.";
+/**
+ * Browsers only expose `navigator.geolocation` on a secure origin, so a plain
+ * `http://` LAN address (phone testing against a dev server) can never resolve
+ * a position. Callers check this first so we can explain that instead of
+ * failing later with a generic timeout.
+ */
+function isGeolocationAvailable() {
+  if (typeof navigator === "undefined" || !navigator.geolocation) {
+    return false;
   }
-  if (error.code === 3) {
-    return "Finding your location timed out. Try again, or use your address instead.";
+  return window.isSecureContext;
+}
+
+function geolocationErrorMessage(error: unknown) {
+  if (error instanceof GeolocationPositionError) {
+    if (error.code === 1) {
+      return "Location access was blocked. Allow it for this site in your browser settings — or use your address instead.";
+    }
+    if (error.code === 2) {
+      return "Your device couldn't determine a position. Turn on location services for your browser — or use your address instead.";
+    }
+    if (error.code === 3) {
+      return "Finding your location timed out. Try again, or use your address instead.";
+    }
   }
-  return "Your location couldn't be determined right now. Use your address instead, or try again.";
+  return "Your location couldn't be determined right now. Try again, or use your address instead.";
 }
 
 function describeDelivery(
@@ -115,27 +135,41 @@ function describeDelivery(
   return { label: "—", free: false };
 }
 
+/**
+ * Official brand marks + brand colors, taken from each provider's own assets:
+ * eSewa — cdn.esewa.com.np/ui/images/logos/esewa-logo.png (180×59), green.
+ * Khalti — khalti-static…/khalti-logo.svg (412×206, red #DC0019 — it is no
+ * longer the old purple), whose artwork only fills the middle ~70%, so it
+ * renders taller here to end up looking the same size as eSewa.
+ * COD has no brand, so it keeps a neutral icon instead of a made-up mark.
+ */
 const PAYMENT_OPTIONS = [
   {
     id: "COD",
     name: "Cash on Delivery",
     tagline: "Pay in cash when your order arrives",
-    tileClass: "bg-emerald-600",
-    letter: "₹",
+    logo: null,
+    logoWidth: 0,
+    logoHeight: 0,
+    logoClass: "",
   },
   {
     id: "ESEWA",
     name: "eSewa",
     tagline: "Pay from your eSewa wallet",
-    tileClass: "bg-[#60BB46]",
-    letter: "e",
+    logo: "/payments/esewa-logo.png",
+    logoWidth: 180,
+    logoHeight: 59,
+    logoClass: "h-6",
   },
   {
     id: "KHALTI",
     name: "Khalti",
     tagline: "Pay from your Khalti wallet",
-    tileClass: "bg-[#5C2D91]",
-    letter: "K",
+    logo: "/payments/khalti-logo.svg",
+    logoWidth: 412,
+    logoHeight: 206,
+    logoClass: "h-9",
   },
 ] as const;
 
@@ -212,7 +246,7 @@ export default function CheckoutPage() {
       setCoordsError(false);
     }
   }, [watchLat, watchLng]);
-  const { geocoding, geocodeNow, canGeocode } = useAddressGeocode({
+  const { geocoding } = useAddressGeocode({
     address: watchAddress,
     city: watchCity,
     province: watchProvince,
@@ -241,44 +275,114 @@ export default function CheckoutPage() {
     });
   }
 
-  function handleLocate() {
-    if (!navigator.geolocation) {
+  /**
+   * "Use my location" also fills the address itself: we turn the fix back into
+   * a province/city/street so the customer isn't left with an empty form. The
+   * coordinates stay authoritative — `fillCoords` marks them manual, so the
+   * address watcher won't re-geocode and shift the drop-off point.
+   */
+  async function handleLocate() {
+    if (!isGeolocationAvailable()) {
       toast.add({
         type: "error",
-        title: "Location not supported",
+        title: "Location isn't available here",
         description:
-          "Your browser can't share a location. Use your address instead.",
+          "Your browser only shares a location on a secure (https) address. Use your address instead.",
       });
       return;
     }
+
     setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setLocating(false);
-        fillCoords(position.coords.latitude, position.coords.longitude);
-      },
-      (error) => {
-        setLocating(false);
-        toast.add({
-          type: "error",
-          title: "Couldn't get your location",
-          description: geolocationErrorMessage(error),
-        });
-      },
-      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 }
-    );
+    try {
+      const coords = await requestDevicePosition();
+      fillCoords(coords.lat, coords.lng);
+      setLocating(false);
+      await fillAddressFromPosition(coords);
+    } catch (error) {
+      setLocating(false);
+      toast.add({
+        type: "error",
+        title: "Couldn't get your location",
+        description: geolocationErrorMessage(error),
+      });
+    }
   }
 
-  async function handleGeocode() {
-    setCoordsManual(false);
-    if (await geocodeNow()) {
+  /**
+   * GPS is slow or unavailable on desktops and locked-down devices, so a
+   * timeout / unavailable result is retried once with the cheap
+   * network-position request before we give up.
+   */
+  function requestDevicePosition() {
+    return new Promise<{ lat: number; lng: number }>((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          resolve({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          });
+        },
+        (error) => {
+          // A permission block is final — retrying just re-prompts. A timeout
+          // or "position unavailable" often succeeds on the cheap
+          // network-position request, so those get one more shot.
+          const canRetry = error.code === 2 || error.code === 3;
+          if (canRetry) {
+            navigator.geolocation.getCurrentPosition(
+              (fallback) => {
+                resolve({
+                  lat: fallback.coords.latitude,
+                  lng: fallback.coords.longitude,
+                });
+              },
+              reject,
+              { enableHighAccuracy: false, timeout: 8000, maximumAge: 60_000 }
+            );
+            return;
+          }
+          reject(error);
+        },
+        { enableHighAccuracy: true, timeout: 12_000, maximumAge: 60_000 }
+      );
+    });
+  }
+
+  async function fillAddressFromPosition(coords: { lat: number; lng: number }) {
+    const reverse = await reverseGeocode(coords);
+    if (!reverse) {
+      toast.add({
+        type: "error",
+        title: "Location set, but we couldn't read the address",
+        description:
+          "Your delivery point is pinned exactly — please fill in the province, city and street address yourself.",
+      });
       return;
     }
+
+    if (reverse.province) {
+      form.setValue("province", reverse.province, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+    }
+    if (reverse.city) {
+      form.setValue("city", reverse.city, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+    }
+    if (reverse.address) {
+      form.setValue("address", reverse.address, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+    }
+
     toast.add({
-      type: "error",
-      title: "No location found",
+      type: "success",
+      title: "Address filled from your location",
       description:
-        "We couldn't find that address. Check the street address, city and province, then try again.",
+        "Please check the province, city and street above — correct anything that doesn't match, then place your order.",
     });
   }
 
@@ -706,9 +810,7 @@ export default function CheckoutPage() {
                 geocoding={geocoding}
                 coordsManual={coordsManual}
                 coordsError={coordsError}
-                canGeocode={canGeocode}
                 locating={locating}
-                onGeocode={handleGeocode}
                 onLocate={handleLocate}
               />
 
@@ -731,7 +833,6 @@ export default function CheckoutPage() {
 
             <div className="mt-5 grid gap-3">
               {PAYMENT_OPTIONS.map((option) => {
-                const Icon = option.letter === "₹" ? BanknoteIcon : null;
                 const selected = paymentMethod === option.id;
 
                 return (
@@ -747,17 +848,22 @@ export default function CheckoutPage() {
                         : "hover:border-foreground/30 hover:bg-accent/40"
                     )}
                   >
-                    <span
-                      className={cn(
-                        "grid size-10 shrink-0 place-items-center rounded-lg text-white",
-                        option.tileClass
-                      )}
-                    >
-                      {Icon ? (
-                        <Icon className="size-5" />
+                    <span className="grid h-12 w-24 shrink-0 place-items-center">
+                      {option.logo ? (
+                        <Image
+                          src={option.logo}
+                          alt={option.name}
+                          width={option.logoWidth}
+                          height={option.logoHeight}
+                          className={cn(
+                            "w-auto max-w-full object-contain",
+                            option.logoClass
+                          )}
+                          unoptimized
+                        />
                       ) : (
-                        <span className="font-bold text-lg">
-                          {option.letter}
+                        <span className="grid size-10 place-items-center rounded-lg bg-emerald-600 text-white">
+                          <BanknoteIcon className="size-5" />
                         </span>
                       )}
                     </span>

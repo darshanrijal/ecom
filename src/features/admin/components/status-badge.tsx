@@ -23,7 +23,7 @@ const ORDER_STATUS_STYLES: Record<AdminOrderStatus, string> = {
 
 const GATEWAY_STYLES: Record<AdminPaymentMethod, string> = {
   ESEWA: "bg-[#60BB46]/15 text-[#3d8f35] dark:text-[#7ed45f]",
-  KHALTI: "bg-[#5C2D91]/15 text-[#5C2D91] dark:text-[#b386e0]",
+  KHALTI: "bg-[#DC0019]/15 text-[#DC0019] dark:text-[#ff6b6b]",
   COD: "bg-muted text-muted-foreground",
 };
 

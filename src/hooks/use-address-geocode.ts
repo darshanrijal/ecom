@@ -22,8 +22,7 @@ const DEBOUNCE_MS = 1500;
  * interaction: watches the address fields, waits for typing to settle,
  * geocodes them (city + province required), and hands the result to
  * `onResult`. One in-flight request at a time; stale responses are
- * discarded. `geocodeNow` bypasses `skip` for explicit "fill from address"
- * button clicks.
+ * discarded.
  */
 export function useAddressGeocode({
   address,
@@ -80,13 +79,5 @@ export function useAddressGeocode({
     return () => clearTimeout(timer);
   }, [query, skip, run]);
 
-  const geocodeNow = useCallback(async () => {
-    if (!query) {
-      return false;
-    }
-    await run(query);
-    return lastQueryRef.current === query;
-  }, [query, run]);
-
-  return { geocoding, geocodeNow, canGeocode: query !== "" };
+  return { geocoding };
 }

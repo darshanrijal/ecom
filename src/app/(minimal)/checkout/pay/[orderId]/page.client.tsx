@@ -12,25 +12,39 @@ import {
   ShieldCheckIcon,
 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 interface WalletBrand {
   name: string;
-  letter: string;
   header: string;
+  logo: string;
+  logoWidth: number;
+  logoHeight: number;
 }
 
+/**
+ * Official marks + brand colors, taken from each provider's own assets:
+ * eSewa — cdn.esewa.com.np/ui/images/logos/esewa-logo.png, brand green #60BB46.
+ * Khalti — khalti-static…/khalti-logo.svg, brand red #DC0019 (it is no longer
+ * the old purple), and its artwork only fills the middle ~70% of the viewBox,
+ * so it renders taller than eSewa to look the same size.
+ */
 const ESEWA: WalletBrand = {
   name: "eSewa",
-  letter: "e",
   header: "from-[#60BB46] to-[#3d8f35]",
+  logo: "/payments/esewa-logo.png",
+  logoWidth: 180,
+  logoHeight: 59,
 };
 
 const KHALTI: WalletBrand = {
   name: "Khalti",
-  letter: "K",
-  header: "from-[#5C2D91] to-[#7d2fb5]",
+  header: "from-[#DC0019] to-[#a30014]",
+  logo: "/payments/khalti-logo.svg",
+  logoWidth: 412,
+  logoHeight: 206,
 };
 
 interface EsewaRedirect {
@@ -204,8 +218,15 @@ export function PayClient({ orderId }: { orderId: string }) {
         <div className="overflow-hidden rounded-2xl border bg-card shadow-lg">
           <div className={`bg-linear-to-r ${brand.header} p-6 text-white`}>
             <div className="flex items-center justify-between">
-              <span className="grid size-10 place-items-center rounded-xl bg-white/20 font-bold text-lg">
-                {brand.letter}
+              <span className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-white px-2">
+                <Image
+                  src={brand.logo}
+                  alt={brand.name}
+                  width={brand.logoWidth}
+                  height={brand.logoHeight}
+                  className="h-auto max-h-7 w-auto max-w-full object-contain"
+                  unoptimized
+                />
               </span>
               <span className="rounded-full bg-white/20 px-2.5 py-1 font-medium text-xs">
                 Order #{order.id.slice(-8).toUpperCase()}
