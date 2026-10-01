@@ -1,52 +1,21 @@
 import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { ModeToggle } from "@/components/mode-toggle";
 import { UserButton } from "@/features/auth/components/userbutton";
 import { CartButton } from "@/features/cart/components/cartbutton";
-import { ChevronDownIcon, MenuIcon } from "lucide-react";
+import { getCurrentSession } from "@/lib/auth";
+import { MenuIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { getCurrentSession } from "@/lib/auth";
+import { DesktopNav } from "./desktop-nav";
 import { getNavCategories } from "./footer";
 import { SearchBar } from "./search-bar";
-import { ModeToggle } from "@/components/mode-toggle";
-
-interface NavbarLink {
-  label: string;
-  url: string;
-  authOnly?: boolean;
-}
-
-const navbarLinks: NavbarLink[] = [
-  {
-    label: "Shop",
-    url: "/products",
-  },
-  {
-    label: "Top deals",
-    url: "/#deals",
-  },
-  {
-    label: "Orders",
-    url: "/orders",
-  },
-  {
-    label: "Favorites",
-    url: "/favorites",
-    authOnly: true,
-  },
-];
 
 export const Navbar = async () => {
   const [categories, session] = await Promise.all([
@@ -54,139 +23,115 @@ export const Navbar = async () => {
     getCurrentSession(),
   ]);
 
-  const links = navbarLinks.filter((link) => !link.authOnly || !!session?.user);
-
   return (
-    <nav className="sticky top-0 z-50 mb-4 w-full border-b bg-background/80 backdrop-blur-xl">
-      <div className="mx-auto flex h-14 w-full max-w-7xl items-center justify-between gap-3 px-4 sm:h-16 sm:px-6 lg:px-8">
-        {/* Mobile menu */}
-        <div className="shrink-0 md:hidden">
-          <Sheet>
-            <SheetTrigger
-              render={
-                <Button
-                  data-slot="sheet-trigger"
-                  size="icon-sm"
-                  variant="ghost"
-                  aria-label="Open menu"
-                >
-                  <MenuIcon />
-                </Button>
-              }
+    <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-xl">
+      <nav
+        aria-label="Primary"
+        className="mx-auto flex h-16 w-full max-w-7xl items-center gap-3 px-4 sm:gap-4 sm:px-6 lg:px-8"
+      >
+        <div className="flex shrink-0 items-center gap-1 lg:gap-2">
+          <div className="lg:hidden">
+            <Sheet>
+              <SheetTrigger
+                render={
+                  <Button
+                    data-slot="sheet-trigger"
+                    size="icon"
+                    variant="ghost"
+                    aria-label="Open menu"
+                  >
+                    <MenuIcon />
+                  </Button>
+                }
+              />
+
+              <SheetContent side="left" className="w-80 gap-0 p-0">
+                <SheetHeader className="border-b px-4 py-4 text-left">
+                  <SheetTitle>Menu</SheetTitle>
+                </SheetHeader>
+
+                <div className="flex flex-1 flex-col overflow-y-auto px-2 py-3">
+                  <div className="flex flex-col gap-0.5">
+                    <Button
+                      variant="ghost"
+                      nativeButton={false}
+                      className="justify-start"
+                      render={<Link href="/products">All products</Link>}
+                    />
+                    <Button
+                      variant="ghost"
+                      nativeButton={false}
+                      className="justify-start"
+                      render={<Link href="/#deals">Deals</Link>}
+                    />
+                    {!!session?.user && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          nativeButton={false}
+                          className="justify-start"
+                          render={<Link href="/orders">Orders</Link>}
+                        />
+                        <Button
+                          variant="ghost"
+                          nativeButton={false}
+                          className="justify-start"
+                          render={<Link href="/favorites">Favorites</Link>}
+                        />
+                      </>
+                    )}
+                  </div>
+
+                  <div className="mt-4 border-t pt-4">
+                    <p className="mb-2 px-3 font-medium text-muted-foreground text-xs">
+                      Shop by category
+                    </p>
+                    <div className="flex flex-col gap-0.5">
+                      {categories.map((category) => (
+                        <Button
+                          key={category.id}
+                          variant="ghost"
+                          nativeButton={false}
+                          className="justify-start"
+                          render={
+                            <Link href={`/category/${category.slug}`}>
+                              {category.name}
+                            </Link>
+                          }
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </SheetContent>
+            </Sheet>
+          </div>
+
+          <Link
+            href="/"
+            className="flex shrink-0 items-center transition-opacity hover:opacity-80"
+          >
+            <Image
+              src="/logo.png"
+              alt="Gada Electronics"
+              width={48}
+              height={48}
+              className="size-10 object-contain sm:size-11"
+              priority
             />
+          </Link>
 
-            <SheetContent side="left">
-              <SheetHeader>
-                <SheetTitle>Menu</SheetTitle>
-              </SheetHeader>
-
-              <div className="flex flex-col gap-1 overflow-y-auto">
-                {links.map((link) => (
-                  <Button
-                    key={link.label}
-                    variant="ghost"
-                    nativeButton={false}
-                    className="justify-start"
-                    render={<Link href={link.url}>{link.label}</Link>}
-                  />
-                ))}
-
-                <p className="mt-3 mb-1 px-3 font-medium text-muted-foreground text-xs uppercase">
-                  Categories
-                </p>
-
-                {categories.map((category) => (
-                  <Button
-                    key={category.id}
-                    variant="ghost"
-                    nativeButton={false}
-                    className="justify-start"
-                    render={
-                      <Link href={`/category/${category.slug}`}>
-                        {category.name}
-                      </Link>
-                    }
-                  />
-                ))}
-              </div>
-            </SheetContent>
-          </Sheet>
+          <DesktopNav categories={categories} />
         </div>
 
-        {/* Logo */}
-        <Link
-          href="/"
-          className="flex min-w-0 shrink items-center transition-opacity hover:opacity-80"
-        >
-          <Image
-            src="/logo.png"
-            alt="Gada Electronics"
-            width={64}
-            height={64}
-            className="size-12 object-contain sm:size-14"
-            priority
-          />
-        </Link>
+        <SearchBar className="mx-auto" />
 
-        {/* Search */}
-        <SearchBar />
-
-        {/* Actions */}
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
           <ModeToggle />
-
-          <div className="shrink-0">
-            <UserButton />
-          </div>
-
-          {/* Cart */}
-          <div className="shrink-0 rounded-full border bg-background p-1 shadow-sm transition-shadow hover:shadow-md">
-            <CartButton />
-          </div>
+          <UserButton />
+          <CartButton />
         </div>
-      </div>
-
-      {/* Secondary row — department links (desktop) */}
-      <div className="hidden border-border/60 border-t md:block">
-        <div className="mx-auto flex h-10 w-full max-w-7xl items-center justify-center gap-1 px-4 sm:px-6 lg:px-8">
-          {links.map((link) => (
-            <Link
-              key={link.label}
-              href={link.url}
-              className="rounded-full px-3.5 py-1.5 font-medium text-muted-foreground text-sm transition-colors hover:bg-muted/60 hover:text-foreground"
-            >
-              {link.label}
-            </Link>
-          ))}
-
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <button
-                  type="button"
-                  className="flex items-center gap-1 rounded-full px-3.5 py-1.5 font-medium text-muted-foreground text-sm transition-colors hover:bg-muted/60 hover:text-foreground"
-                >
-                  Categories
-                  <ChevronDownIcon className="size-3.5" />
-                </button>
-              }
-            />
-
-            <DropdownMenuContent align="start" className="max-h-80 w-56">
-              {categories.map((category) => (
-                <DropdownMenuItem
-                  key={category.id}
-                  render={
-                    <Link href={`/category/${category.slug}`}>
-                      {category.name}
-                    </Link>
-                  }
-                />
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-    </nav>
+      </nav>
+    </header>
   );
 };

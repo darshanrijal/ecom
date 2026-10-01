@@ -1,41 +1,76 @@
 import { api } from "@/__rpc/server";
 import { CategoryGrid } from "@/features/homepage/components/category-grid";
+import { CategoryRail } from "@/features/homepage/components/category-rail";
+import { CategorySpotlight } from "@/features/homepage/components/category-spotlight";
+import { ClosingCta } from "@/features/homepage/components/closing-cta";
+import { DealSpotlight } from "@/features/homepage/components/deal-spotlight";
 import { Hero } from "@/features/homepage/components/hero";
-import { ProductSection } from "@/features/homepage/components/product-section";
-import { PromoBanners } from "@/features/homepage/components/promo-banners";
+import { ProductShelf } from "@/features/homepage/components/product-shelf";
+import { TrustBand } from "@/features/homepage/components/trust-band";
 import { UspStrip } from "@/features/homepage/components/usp-strip";
 
 export default async function Home() {
   const { categories, deals, popular, stats } =
     await api.products.getHomeData();
 
+  const [spotlightDeal, ...moreDeals] = deals;
+  const featured = spotlightDeal ?? popular[0] ?? null;
+
+  // Prefer high-traffic departments for the spotlight panels.
+  const preferredSlugs = ["mobile-phones", "televisions", "laptops"];
+  const rankedCategories = [...categories].sort((a, b) => {
+    const aRank = preferredSlugs.indexOf(a.slug);
+    const bRank = preferredSlugs.indexOf(b.slug);
+    const aScore = aRank === -1 ? 99 : aRank;
+    const bScore = bRank === -1 ? 99 : bRank;
+    if (aScore !== bScore) {
+      return aScore - bScore;
+    }
+    return b.productCount - a.productCount;
+  });
+  const spotlightCategories = rankedCategories
+    .filter((category) => category.productCount > 0)
+    .slice(0, 2);
+
+  const popularWithoutFeatured = popular.filter(
+    (product) => product.id !== featured?.id
+  );
+
   return (
-    <main className="flex flex-col gap-10 pb-6 sm:gap-14">
+    <main>
       <Hero
         productCount={stats.productCount}
         categoryCount={stats.categoryCount}
       />
 
-      <UspStrip />
+			<UspStrip />
 
       <CategoryGrid categories={categories} />
 
-      <ProductSection
-        id="deals"
-        eyebrow="Limited time"
-        title="Top deals"
+      {!!spotlightDeal && <DealSpotlight deal={spotlightDeal} />}
+
+      {moreDeals.length > 0 ? (
+        <ProductShelf
+          title="More deals"
+          description="Prices already reduced. Stock moves fast on the best cuts."
+          href="/products"
+          linkLabel="See all deals"
+          products={moreDeals}
+        />
+      ) : null}
+
+      <CategorySpotlight categories={spotlightCategories} />
+
+      <ProductShelf
+        title="Popular right now"
+        description="A pick from each category so you can scan the store quickly."
         href="/products"
-        products={deals}
+        products={popularWithoutFeatured}
       />
 
-      <PromoBanners />
+      <TrustBand />
 
-      <ProductSection
-        eyebrow="Handpicked"
-        title="Popular picks"
-        href="/products"
-        products={popular}
-      />
+      <ClosingCta productCount={stats.productCount} />
     </main>
   );
 }

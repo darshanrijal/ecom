@@ -414,4 +414,176 @@ export const productRouter = router({
       },
     };
   }),
+
+  getFilterFacets: publicProcedure.query(async ({ ctx }) => {
+    const [categories, priceAgg] = await Promise.all([
+      ctx.db.category.findMany({
+        orderBy: { name: "asc" },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          _count: {
+            select: {
+              products: {
+                where: { isPublished: true, archivedAt: null },
+              },
+            },
+          },
+        },
+      }),
+      ctx.db.productSKU.aggregate({
+        where: {
+          product: { isPublished: true, archivedAt: null },
+        },
+        _min: { price: true },
+        _max: { price: true },
+      }),
+    ]);
+
+    const priceMin = Math.floor(Number(priceAgg._min.price ?? 0));
+    const priceMax = Math.ceil(Number(priceAgg._max.price ?? 0));
+
+    return {
+      categories: categories.map(({ _count, ...category }) => ({
+        ...category,
+        productCount: _count.products,
+      })),
+      priceMin,
+      priceMax: priceMax > priceMin ? priceMax : priceMin + 1,
+    };
+  }),
+
+  browseProducts: publicProcedure
+    .input(
+      z.object({
+        limit: z.number().min(1).max(100).default(20),
+        cursor: z.number().min(0).nullish(),
+        search: z.string().optional(),
+        categorySlugs: z.array(z.string()).max(50).optional(),
+        minPrice: z.number().min(0).optional(),
+        maxPrice: z.number().min(0).optional(),
+        inStock: z.boolean().optional(),
+        onSale: z.boolean().optional(),
+        sort: z
+          .enum(["newest", "price-asc", "price-desc", "name"])
+          .default("newest"),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const offset = input.cursor ?? 0;
+      const search = input.search?.trim();
+
+      const where: {
+        isPublished: true;
+        archivedAt: null;
+        OR?: Record<string, unknown>[];
+        category?: { slug: { in: string[] } };
+        productSKUs?: { some: Record<string, unknown> };
+      } = {
+        isPublished: true,
+        archivedAt: null,
+      };
+
+      if (search) {
+        where.OR = [
+          { name: { contains: search, mode: "insensitive" } },
+          { description: { contains: search, mode: "insensitive" } },
+          {
+            category: {
+              name: { contains: search, mode: "insensitive" },
+            },
+          },
+        ];
+      }
+
+      if (input.categorySlugs && input.categorySlugs.length > 0) {
+        where.category = { slug: { in: input.categorySlugs } };
+      }
+
+      const skuFilter: Record<string, unknown> = {};
+      if (input.minPrice !== undefined || input.maxPrice !== undefined) {
+        skuFilter.price = {
+          ...(input.minPrice === undefined ? {} : { gte: input.minPrice }),
+          ...(input.maxPrice === undefined ? {} : { lte: input.maxPrice }),
+        };
+      }
+      if (input.inStock) {
+        skuFilter.stock = { gt: 0 };
+      }
+      if (Object.keys(skuFilter).length > 0) {
+        where.productSKUs = { some: skuFilter };
+      }
+
+      const products = await ctx.db.product.findMany({
+        where,
+        include: {
+          productSKUs: lowestPricedSku,
+          category: { select: { name: true, slug: true } },
+        },
+      });
+
+      let items = serializeProducts(products);
+
+      if (input.onSale) {
+        items = items.filter((product) => {
+          const [sku] = product.productSKUs;
+          return !!sku?.originalPrice && sku.originalPrice > sku.price;
+        });
+      }
+
+      // Keep the displayed (lowest) SKU inside the chosen price band.
+      if (input.minPrice !== undefined || input.maxPrice !== undefined) {
+        items = items.filter((product) => {
+          const [sku] = product.productSKUs;
+          if (!sku) {
+            return false;
+          }
+          if (input.minPrice !== undefined && sku.price < input.minPrice) {
+            return false;
+          }
+          if (input.maxPrice !== undefined && sku.price > input.maxPrice) {
+            return false;
+          }
+          return true;
+        });
+      }
+
+      if (input.inStock) {
+        items = items.filter((product) => {
+          const [sku] = product.productSKUs;
+          return !!sku && sku.stock > 0;
+        });
+      }
+
+      items.sort((a, b) => {
+        const aPrice = a.productSKUs[0]?.price ?? 0;
+        const bPrice = b.productSKUs[0]?.price ?? 0;
+
+        switch (input.sort) {
+          case "price-asc":
+            return aPrice - bPrice || a.name.localeCompare(b.name);
+          case "price-desc":
+            return bPrice - aPrice || a.name.localeCompare(b.name);
+          case "name":
+            return a.name.localeCompare(b.name);
+          default: {
+            const aTime = new Date(a.createdAt).getTime();
+            const bTime = new Date(b.createdAt).getTime();
+            return bTime - aTime || a.id.localeCompare(b.id);
+          }
+        }
+      });
+
+      const total = items.length;
+      const page = items.slice(offset, offset + input.limit);
+      const nextCursor =
+        offset + input.limit < total ? offset + input.limit : undefined;
+
+      return {
+        products: page,
+        nextCursor,
+        total,
+      };
+    }),
 });

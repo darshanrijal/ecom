@@ -6,7 +6,7 @@ import Link from "next/link";
 export const getNavCategories = cache(async () =>
   db.category.findMany({
     orderBy: { name: "asc" },
-    select: { id: true, name: true, slug: true },
+    select: { id: true, name: true, slug: true, description: true },
   })
 );
 

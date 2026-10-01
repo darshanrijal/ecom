@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import {
   HeartIcon,
   LogInIcon,
+  PackageIcon,
   SettingsIcon,
   ShieldCheckIcon,
 } from "lucide-react";
@@ -101,6 +102,19 @@ export const UserButton = ({ className }: UserButtonProps) => {
         </div>
 
         <div className="mt-3 flex flex-col gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="justify-start gap-2"
+            nativeButton={false}
+            render={
+              <Link href="/orders">
+                <PackageIcon className="size-4" />
+                Orders
+              </Link>
+            }
+          />
+
           <Button
             variant="ghost"
             size="sm"
