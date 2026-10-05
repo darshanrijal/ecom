@@ -13,6 +13,10 @@ export default async function FavoritesPage() {
     redirect("/sign-in");
   }
 
+  if (session.user && !session.user.emailVerified) {
+    redirect("/verify-email");
+  }
+
   api.favorite.list.prefetch();
 
   return (

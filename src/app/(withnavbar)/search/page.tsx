@@ -5,12 +5,14 @@ import { Suspense } from "react";
 import { ProductCardSkeleton } from "@/features/products/components/product-card-skeleton";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { AlertTriangle } from "lucide-react";
+import { preventUnauthorized } from "@/lib/auth";
 
 export default async function SearchPage({
   searchParams,
 }: {
   searchParams: Promise<{ input?: string }>;
 }) {
+  await preventUnauthorized();
   const { input } = await searchParams;
 
   if (!input) {

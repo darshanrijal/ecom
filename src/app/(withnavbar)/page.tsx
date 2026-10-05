@@ -1,6 +1,5 @@
 import { api } from "@/__rpc/server";
 import { CategoryGrid } from "@/features/homepage/components/category-grid";
-import { CategoryRail } from "@/features/homepage/components/category-rail";
 import { CategorySpotlight } from "@/features/homepage/components/category-spotlight";
 import { ClosingCta } from "@/features/homepage/components/closing-cta";
 import { DealSpotlight } from "@/features/homepage/components/deal-spotlight";
@@ -44,7 +43,7 @@ export default async function Home() {
         categoryCount={stats.categoryCount}
       />
 
-			<UspStrip />
+      <UspStrip />
 
       <CategoryGrid categories={categories} />
 
@@ -60,7 +59,7 @@ export default async function Home() {
         />
       ) : null}
 
-			<PromoBanners />
+      <PromoBanners />
 
       <CategorySpotlight categories={spotlightCategories} />
 

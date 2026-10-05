@@ -141,7 +141,7 @@ function useCatalogFilters() {
     new URLSearchParams(searchParams.toString()),
     facets
       ? { priceMin: facets.priceMin, priceMax: facets.priceMax }
-      : undefined,
+      : undefined
   );
 
   const writeFilters = useEffectEvent((next: CatalogFilters) => {
@@ -294,7 +294,7 @@ export function ProductCatalog() {
     },
     {
       getNextPageParam: (lastPage) => lastPage.nextCursor,
-    },
+    }
   );
 
   function clearFilters() {
@@ -314,7 +314,7 @@ export function ProductCatalog() {
           fetchNextPage();
         }
       },
-      { rootMargin: "240px" },
+      { rootMargin: "240px" }
     );
 
     observer.observe(node);

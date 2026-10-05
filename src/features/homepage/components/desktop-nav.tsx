@@ -35,19 +35,25 @@ export function DesktopNav({ categories }: DesktopNavProps) {
             <div className="w-[34rem]">
               <div className="mb-2 flex items-center justify-between px-2">
                 <p className="font-medium text-sm">Categories</p>
-                <Link
-                  href="/products"
-                  className="inline-flex items-center gap-1 text-muted-foreground text-xs transition-colors hover:text-foreground"
-                >
-                  All products
-                  <ArrowRightIcon className="size-3" />
-                </Link>
+                <NavigationMenuLink
+                  closeOnClick
+                  render={
+                    <Link
+                      href="/products"
+                      className="inline-flex items-center gap-1 text-muted-foreground text-xs transition-colors hover:text-foreground"
+                    >
+                      All products
+                      <ArrowRightIcon className="size-3" />
+                    </Link>
+                  }
+                />
               </div>
 
               <ul className="grid grid-cols-2 gap-1">
                 {categories.map((category) => (
                   <li key={category.id}>
                     <NavigationMenuLink
+                      closeOnClick
                       render={
                         <Link
                           href={`/category/${category.slug}`}
@@ -73,6 +79,7 @@ export function DesktopNav({ categories }: DesktopNavProps) {
 
         <NavigationMenuItem>
           <NavigationMenuLink
+            closeOnClick
             className={navigationMenuTriggerStyle()}
             render={<Link href="/#deals">Deals</Link>}
           />
@@ -80,6 +87,7 @@ export function DesktopNav({ categories }: DesktopNavProps) {
 
         <NavigationMenuItem>
           <NavigationMenuLink
+            closeOnClick
             className={navigationMenuTriggerStyle()}
             render={<Link href="/products">Catalog</Link>}
           />

@@ -1,6 +1,7 @@
 import { api, HydrateClient } from "@/__rpc/server";
 import { ProductCardSkeleton } from "@/features/products/components/product-card-skeleton";
 import { ProductCatalog } from "@/features/products/components/product-catalog";
+import { preventUnauthorized } from "@/lib/auth";
 import { Suspense } from "react";
 
 function parseCategorySlugs(
@@ -38,6 +39,7 @@ export default async function ProductsPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await preventUnauthorized();
   const params = await searchParams;
   const search = typeof params.q === "string" ? params.q : undefined;
   const categorySlugs = parseCategorySlugs(params.category);

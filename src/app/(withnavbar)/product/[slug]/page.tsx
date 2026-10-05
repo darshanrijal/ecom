@@ -3,12 +3,14 @@ import { Suspense } from "react";
 import { ProductClientPage } from "./page.client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { preventUnauthorized } from "@/lib/auth";
 
 export default async function ProductPage({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }) {
+  await preventUnauthorized();
   const { slug } = await params;
   api.products.getProductBySlug.prefetch({ slug });
 

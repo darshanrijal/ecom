@@ -10,6 +10,10 @@ export default async function SettingsPage() {
     redirect("/sign-in");
   }
 
+  if (user && !user.emailVerified) {
+    redirect("/verify-email");
+  }
+
   const accountWithPassword = await db.account.findFirst({
     where: {
       userId: user.id,

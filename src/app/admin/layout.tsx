@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AdminSidebar } from "@/features/admin/components/admin-sidebar";
 import { AdminHeader } from "@/features/admin/components/admin-header";
-import { getCurrentSession } from "@/lib/auth";
+import { preventUnauthorized } from "@/lib/auth";
 import { isAdminEmail } from "@/lib/admin";
 
 export default async function AdminLayout({
@@ -10,7 +10,7 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await getCurrentSession();
+  const session = await preventUnauthorized();
 
   if (!session?.user) {
     redirect("/sign-in");

@@ -93,7 +93,15 @@ export const UserButton = ({ className }: UserButtonProps) => {
         }
       />
 
-      <PopoverContent aria-label="Account menu" className="w-80">
+      <PopoverContent
+        aria-label="Account menu"
+        className="w-80"
+        onClick={(e) => {
+          if ((e.target as HTMLAnchorElement).tagName === "A") {
+            setOpenPopover(false);
+          }
+        }}
+      >
         <div>
           <p className="truncate font-semibold">{data?.user.name}</p>
           <p className="truncate text-muted-foreground text-sm">
